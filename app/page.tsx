@@ -375,10 +375,13 @@ export default function Home() {
     const end = computeEnd(start);
 
     try {
+      const clipPayload = url === "sample"
+        ? { url: "sample", start, end, format, limit60: true }
+        : { url, start, end, format, limit60: true };
       const res = await fetch("/api/clip", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url, start, end, format, limit60: true }),
+        body: JSON.stringify(clipPayload),
       });
 
       if (!res.ok) {
@@ -424,21 +427,35 @@ export default function Home() {
           <label htmlFor="url" className="mb-1 block text-sm font-medium text-gray-300">
             Video URL
           </label>
-          <input
-            id="url"
-            type="url"
-            required
-            placeholder="https://www.twitch.tv/videos/123456789"
-            value={url}
-            onChange={(e) => {
-              setUrl(e.target.value);
-              if (analyzeStatus !== "idle") {
-                setAnalyzeStatus("idle");
-                setMoments([]);
-              }
-            }}
-            className="w-full rounded-lg border border-gray-700 bg-gray-800 px-4 py-2.5 text-sm text-white placeholder-gray-500 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-          />
+          <div className="flex gap-2">
+            <input
+              id="url"
+              type="text"
+              required
+              placeholder="https://www.twitch.tv/videos/123456789"
+              value={url}
+              onChange={(e) => {
+                setUrl(e.target.value);
+                if (analyzeStatus !== "idle") {
+                  setAnalyzeStatus("idle");
+                  setMoments([]);
+                }
+              }}
+              className="flex-1 rounded-lg border border-gray-700 bg-gray-800 px-4 py-2.5 text-sm text-white placeholder-gray-500 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+            />
+            <button
+              type="button"
+              onClick={() => setUrl("sample")}
+              className="whitespace-nowrap rounded-lg border border-gray-600 bg-gray-800 px-3 py-2.5 text-sm text-gray-300 transition hover:bg-gray-700 hover:text-white"
+            >
+              Try Sample
+            </button>
+          </div>
+          {url === "sample" && (
+            <p className="mt-1 text-xs text-indigo-400">
+              Using built-in 90s test video (1280x720 with audio).
+            </p>
+          )}
         </div>
 
         {/* Video + Chat side-by-side (Twitch VODs only) */}

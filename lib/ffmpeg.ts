@@ -20,8 +20,8 @@ function buildVideoFilter(format: ClipFormat): string {
       // Scale so height >= 1280 while preserving ratio, then center-crop to 720x1280
       return "scale=-2:1280,crop=720:1280";
     case "square":
-      // Scale so width >= 720, then center-crop to 720x720
-      return "scale=720:-2,crop=720:720";
+      // Scale so the shorter side is at least 720, then center-crop to 720x720
+      return "scale='if(gte(iw/ih,1),-2,720)':'if(gte(iw/ih,1),720,-2)',crop=720:720";
   }
 }
 
