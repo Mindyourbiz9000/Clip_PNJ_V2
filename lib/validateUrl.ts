@@ -1,4 +1,5 @@
 import { resolve4, resolve6 } from "node:dns/promises";
+import { isSupportedPlatformUrl } from "./resolveUrl";
 
 const PRIVATE_RANGES = [
   // 10.0.0.0/8
@@ -77,14 +78,17 @@ export async function validateUrl(
     return { valid: false, error: "Loopback addresses are not allowed" };
   }
 
-  // Check file extension (allowlist)
-  const pathname = parsed.pathname.toLowerCase();
-  const hasAllowedExt = ALLOWED_EXTENSIONS.some((ext) => pathname.endsWith(ext));
-  if (!hasAllowedExt) {
-    return {
-      valid: false,
-      error: `URL must point to a supported file type: ${ALLOWED_EXTENSIONS.join(", ")}`,
-    };
+  // Check file extension (allowlist) — skip for supported platform URLs
+  const normalizedUrl = parsed.toString();
+  if (!isSupportedPlatformUrl(normalizedUrl)) {
+    const pathname = parsed.pathname.toLowerCase();
+    const hasAllowedExt = ALLOWED_EXTENSIONS.some((ext) => pathname.endsWith(ext));
+    if (!hasAllowedExt) {
+      return {
+        valid: false,
+        error: `URL must point to a supported file type: ${ALLOWED_EXTENSIONS.join(", ")}`,
+      };
+    }
   }
 
   // DNS resolution — reject if any resolved IP is private

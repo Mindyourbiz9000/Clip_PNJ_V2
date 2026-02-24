@@ -8,6 +8,7 @@ import { validateTimes } from "@/lib/time";
 import { clipSemaphore } from "@/lib/semaphore";
 import { buildFfmpegArgs, runFfmpeg, FfmpegTimeoutError, FfmpegProcessError, type ClipFormat } from "@/lib/ffmpeg";
 import { safeUnlink } from "@/lib/cleanup";
+import { isSupportedPlatformUrl, resolveStreamUrl, UrlResolveError } from "@/lib/resolveUrl";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -52,8 +53,22 @@ export async function POST(req: NextRequest) {
   }
 
   const { startSec, duration } = timeResult;
+
+  // Resolve platform URLs (e.g. Twitch) to direct stream URLs
+  let videoUrl = urlResult.url;
+  if (isSupportedPlatformUrl(videoUrl)) {
+    try {
+      videoUrl = await resolveStreamUrl(videoUrl);
+    } catch (err) {
+      if (err instanceof UrlResolveError) {
+        return jsonError(err.message, 400);
+      }
+      return jsonError("Failed to resolve video URL", 500);
+    }
+  }
+
   const { args, outPath } = buildFfmpegArgs({
-    url: urlResult.url,
+    url: videoUrl,
     startSec,
     duration,
     format: format as ClipFormat,
