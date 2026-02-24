@@ -55,7 +55,8 @@ export default function Home() {
           QuickClip
         </h1>
         <p className="mb-6 text-sm text-gray-400">
-          Paste a direct video URL, pick your clip range, and download.
+          Paste a video URL, pick your clip range, and download. Supports
+          Twitch VODs and direct .mp4/.m3u8 links.
         </p>
 
         <form onSubmit={handleSubmit} className="space-y-5">
@@ -68,7 +69,7 @@ export default function Home() {
               id="url"
               type="url"
               required
-              placeholder="https://example.com/video.mp4"
+              placeholder="https://www.twitch.tv/videos/123456789"
               value={url}
               onChange={(e) => setUrl(e.target.value)}
               className="w-full rounded-lg border border-gray-700 bg-gray-800 px-4 py-2.5 text-sm text-white placeholder-gray-500 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
@@ -172,8 +173,7 @@ export default function Home() {
 
         {/* Info */}
         <p className="mt-6 text-xs text-gray-500">
-          Accepts direct .mp4 or .m3u8 URLs only. YouTube and other streaming
-          platform URLs are not supported.
+          Supports Twitch VOD URLs and direct .mp4/.m3u8 links.
         </p>
       </div>
     </main>
