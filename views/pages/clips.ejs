@@ -1,0 +1,25 @@
+<%- include('../partials/header') %>
+
+<section class="page-content">
+  <h1>Clips</h1>
+
+  <% if (clips.length === 0) { %>
+    <p class="empty-state">No clips yet. Check back soon!</p>
+  <% } else { %>
+    <div class="clips-grid">
+      <% clips.forEach(clip => { %>
+        <div class="clip-card">
+          <div class="clip-thumbnail">
+            <img src="<%= clip.thumbnail || '/images/placeholder.png' %>" alt="<%= clip.title %>">
+          </div>
+          <div class="clip-info">
+            <h3><a href="/clips/<%= clip.id %>"><%= clip.title %></a></h3>
+            <p><%= clip.description %></p>
+          </div>
+        </div>
+      <% }) %>
+    </div>
+  <% } %>
+</section>
+
+<%- include('../partials/footer') %>

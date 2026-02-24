@@ -1,0 +1,27 @@
+{
+  "name": "clip-pnj-v2",
+  "version": "1.0.0",
+  "description": "Video/media clips web application",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js",
+    "lint": "eslint src/",
+    "test": "echo \"No tests configured yet\" && exit 0"
+  },
+  "keywords": ["video", "clips", "media"],
+  "license": "ISC",
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "ejs": "^3.1.10",
+    "express": "^4.21.2",
+    "morgan": "^1.10.0"
+  },
+  "devDependencies": {
+    "eslint": "^9.19.0",
+    "nodemon": "^3.1.9"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
