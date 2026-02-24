@@ -483,6 +483,8 @@ export default function Home() {
 
   function selectMoment(moment: HypeMoment, index: number) {
     setSelectedMomentIdx(index);
+    // Scroll to top so the video player is visible
+    window.scrollTo({ top: 0, behavior: "smooth" });
     // Seek the embedded player to this moment
     if (playerRef.current) {
       try {
