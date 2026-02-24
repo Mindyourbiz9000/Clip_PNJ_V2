@@ -30,6 +30,7 @@ const TAG_CONFIG: Record<HighlightTag, { label: string; emoji: string; color: st
 
 interface ChatMsg {
   offsetSeconds: number;
+  author: string;
   text: string;
   fragments: { text: string; emote: { emoteID: string } | null }[];
 }
@@ -385,6 +386,11 @@ function ChatReplayPanel({
             <span className="text-gray-500 text-xs mr-1.5">
               {formatChatTime(msg.offsetSeconds)}
             </span>
+            {msg.author && (
+              <span className="font-semibold text-purple-400 mr-1">
+                {msg.author}:
+              </span>
+            )}
             {msg.fragments.map((frag, fi) =>
               frag.emote ? (
                 <span key={fi} className="text-purple-400" title={frag.text}>
