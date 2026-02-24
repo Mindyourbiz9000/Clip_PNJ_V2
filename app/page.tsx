@@ -296,11 +296,10 @@ function ChatReplayPanel({
 export default function Home() {
   const [url, setUrl] = useState("");
   const [start, setStart] = useState("00:00:00");
-  const [end, setEnd] = useState("00:01:00");
   const [format, setFormat] = useState("landscape");
-  const [limit60, setLimit60] = useState(true);
   const [status, setStatus] = useState<Status>("idle");
   const [errorMsg, setErrorMsg] = useState("");
+  const [clipUrl, setClipUrl] = useState<string | null>(null);
 
   // Chat analysis state
   const [analyzeStatus, setAnalyzeStatus] = useState<AnalyzeStatus>("idle");
@@ -344,7 +343,6 @@ export default function Home() {
 
   function selectMoment(moment: HypeMoment) {
     setStart(formatTime(moment.startSec));
-    setEnd(formatTime(moment.endSec));
     // Seek the embedded player to this moment
     if (playerRef.current) {
       try {
@@ -356,16 +354,31 @@ export default function Home() {
     }
   }
 
+  // Compute end time as start + 60 seconds
+  function computeEnd(startStr: string): string {
+    const m = startStr.trim().match(/^(\d{1,2}):(\d{2}):(\d{2})$/);
+    if (!m) return "00:01:00";
+    const totalSec = parseInt(m[1], 10) * 3600 + parseInt(m[2], 10) * 60 + parseInt(m[3], 10) + 60;
+    return formatTime(totalSec);
+  }
+
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setStatus("processing");
     setErrorMsg("");
+    // Revoke previous clip URL to free memory
+    if (clipUrl) {
+      URL.revokeObjectURL(clipUrl);
+      setClipUrl(null);
+    }
+
+    const end = computeEnd(start);
 
     try {
       const res = await fetch("/api/clip", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url, start, end, format, limit60 }),
+        body: JSON.stringify({ url, start, end, format, limit60: true }),
       });
 
       if (!res.ok) {
@@ -375,19 +388,22 @@ export default function Home() {
 
       const blob = await res.blob();
       const objectUrl = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = objectUrl;
-      a.download = "quickclip.mp4";
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(objectUrl);
-
+      setClipUrl(objectUrl);
       setStatus("success");
     } catch (err) {
       setStatus("error");
       setErrorMsg(err instanceof Error ? err.message : "Something went wrong");
     }
+  }
+
+  function handleDownload() {
+    if (!clipUrl) return;
+    const a = document.createElement("a");
+    a.href = clipUrl;
+    a.download = "quickclip.mp4";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
   }
 
   const maxScore = moments.length > 0 ? Math.max(...moments.map((m) => m.score)) : 1;
@@ -480,38 +496,24 @@ export default function Home() {
                 <p className="text-sm text-red-400">Analysis error: {analyzeError}</p>
               )}
 
-              {/* Start / End */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label htmlFor="start" className="mb-1 block text-sm font-medium text-gray-300">
-                    Start (HH:MM:SS)
-                  </label>
-                  <input
-                    id="start"
-                    type="text"
-                    required
-                    pattern="\d{1,2}:\d{2}:\d{2}"
-                    placeholder="00:00:00"
-                    value={start}
-                    onChange={(e) => setStart(e.target.value)}
-                    className="w-full rounded-lg border border-gray-700 bg-gray-800 px-4 py-2.5 text-sm text-white placeholder-gray-500 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                  />
-                </div>
-                <div>
-                  <label htmlFor="end" className="mb-1 block text-sm font-medium text-gray-300">
-                    End (HH:MM:SS)
-                  </label>
-                  <input
-                    id="end"
-                    type="text"
-                    required
-                    pattern="\d{1,2}:\d{2}:\d{2}"
-                    placeholder="00:01:00"
-                    value={end}
-                    onChange={(e) => setEnd(e.target.value)}
-                    className="w-full rounded-lg border border-gray-700 bg-gray-800 px-4 py-2.5 text-sm text-white placeholder-gray-500 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                  />
-                </div>
+              {/* Start time */}
+              <div>
+                <label htmlFor="start" className="mb-1 block text-sm font-medium text-gray-300">
+                  Start Time (HH:MM:SS)
+                </label>
+                <input
+                  id="start"
+                  type="text"
+                  required
+                  pattern="\d{1,2}:\d{2}:\d{2}"
+                  placeholder="00:00:00"
+                  value={start}
+                  onChange={(e) => setStart(e.target.value)}
+                  className="w-full rounded-lg border border-gray-700 bg-gray-800 px-4 py-2.5 text-sm text-white placeholder-gray-500 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                  Clip will be 1 minute starting from this time ({start} &rarr; {computeEnd(start)})
+                </p>
               </div>
 
               {/* Set from player */}
@@ -522,7 +524,6 @@ export default function Home() {
                     try {
                       const t = Math.floor(playerRef.current?.getCurrentTime?.() ?? 0);
                       setStart(formatTime(t));
-                      setEnd(formatTime(t + 30));
                     } catch {
                       /* player not ready */
                     }
@@ -550,17 +551,6 @@ export default function Home() {
                 </select>
               </div>
 
-              {/* Limit 60s */}
-              <label className="flex items-center gap-2 text-sm text-gray-300">
-                <input
-                  type="checkbox"
-                  checked={limit60}
-                  onChange={(e) => setLimit60(e.target.checked)}
-                  className="h-4 w-4 rounded border-gray-600 bg-gray-800 text-indigo-500 focus:ring-indigo-500"
-                />
-                Limit to 60 seconds
-              </label>
-
               {/* Submit */}
               <button
                 type="submit"
@@ -571,7 +561,7 @@ export default function Home() {
               </button>
             </form>
 
-            {/* Status */}
+            {/* Status / Preview */}
             <div className="mt-4">
               {status === "processing" && (
                 <div className="flex items-center gap-2 text-sm text-yellow-400">
@@ -582,13 +572,25 @@ export default function Home() {
                   Generating your clip...
                 </div>
               )}
-              {status === "success" && (
-                <p className="text-sm text-green-400">
-                  Clip generated! Your download should start automatically.
-                </p>
-              )}
               {status === "error" && (
                 <p className="text-sm text-red-400">Error: {errorMsg}</p>
+              )}
+              {status === "success" && clipUrl && (
+                <div className="space-y-3">
+                  <p className="text-sm text-green-400">Clip ready! Preview below:</p>
+                  <video
+                    src={clipUrl}
+                    controls
+                    className="w-full rounded-lg"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleDownload}
+                    className="w-full rounded-lg bg-green-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-green-500 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 focus:ring-offset-gray-900"
+                  >
+                    Download Clip
+                  </button>
+                </div>
               )}
             </div>
           </div>
@@ -618,8 +620,7 @@ export default function Home() {
                 <div className="max-h-[400px] space-y-1.5 overflow-y-auto pr-1">
                   {moments.map((m, i) => {
                     const pct = Math.round((m.score / maxScore) * 100);
-                    const isSelected =
-                      start === formatTime(m.startSec) && end === formatTime(m.endSec);
+                    const isSelected = start === formatTime(m.startSec);
                     return (
                       <button
                         key={i}
