@@ -1,4 +1,4 @@
-# QuickClip
+# Clip_PNJ
 
 Generate downloadable video clips from a direct video URL. Paste a link, pick start/end times and aspect ratio, and get an MP4 download.
 

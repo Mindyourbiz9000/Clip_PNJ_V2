@@ -522,7 +522,7 @@ export default function Home() {
       <div className="mx-auto max-w-7xl">
         {/* Header */}
         <div className="mb-6">
-          <h1 className="text-3xl font-bold tracking-tight text-white">QuickClip</h1>
+          <h1 className="text-3xl font-bold tracking-tight text-white">Clip_PNJ</h1>
           <p className="mt-1 text-sm text-gray-400">
             Designed by{" "}
             <a
