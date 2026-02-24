@@ -499,14 +499,23 @@ export default function Home() {
           <p className="mt-1 text-sm text-gray-400">
             Designed by{" "}
             <a
+              href="https://www.twitch.tv/lebarv_pnj"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-purple-400 hover:text-purple-300 underline"
+            >
+              LeBarv_PNJ
+            </a>
+            , from{" "}
+            <a
               href="https://www.twitch.tv/inespnj"
               target="_blank"
               rel="noopener noreferrer"
               className="text-purple-400 hover:text-purple-300 underline"
             >
               InesPNJ
-            </a>{" "}
-            community
+            </a>
+            &apos;s community
           </p>
           <p className="mt-2 text-xs text-gray-500">
             🇫🇷 Si vous êtes déjà connecté à Twitch, vous pouvez accéder à la fonctionnalité de clip. Si vous ne voyez pas l&apos;option clip, veuillez vous connecter à Twitch dans une autre fenêtre.
@@ -689,6 +698,17 @@ export default function Home() {
         {/* Footer */}
         <p className="mt-6 text-center text-xs text-gray-500">
           Paste a Twitch VOD URL to preview the video, browse chat replay, and detect highlight moments from chat activity.
+        </p>
+        <p className="mt-4 text-center text-xs text-gray-600">
+          Developed by{" "}
+          <a
+            href="https://www.twitch.tv/lebarv_pnj"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-purple-400 hover:text-purple-300 underline"
+          >
+            LeBarv_PNJ
+          </a>
         </p>
       </div>
     </main>
