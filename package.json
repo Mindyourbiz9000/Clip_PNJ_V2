@@ -1,27 +1,25 @@
 {
-  "name": "clip-pnj-v2",
+  "name": "quickclip",
   "version": "1.0.0",
-  "description": "Video/media clips web application",
-  "main": "src/server.js",
+  "private": true,
   "scripts": {
-    "start": "node src/server.js",
-    "dev": "nodemon src/server.js",
-    "lint": "eslint src/",
-    "test": "echo \"No tests configured yet\" && exit 0"
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start -p ${PORT:-3000}",
+    "lint": "next lint"
   },
-  "keywords": ["video", "clips", "media"],
-  "license": "ISC",
   "dependencies": {
-    "dotenv": "^16.4.7",
-    "ejs": "^3.1.10",
-    "express": "^4.21.2",
-    "morgan": "^1.10.0"
+    "next": "^14.2.18",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
   },
   "devDependencies": {
-    "eslint": "^9.19.0",
-    "nodemon": "^3.1.9"
-  },
-  "engines": {
-    "node": ">=18.0.0"
+    "@types/node": "^20.11.0",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "autoprefixer": "^10.4.17",
+    "postcss": "^8.4.33",
+    "tailwindcss": "^3.4.1",
+    "typescript": "^5.3.3"
   }
 }
