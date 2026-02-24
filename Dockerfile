@@ -15,6 +15,7 @@ RUN npm ci
 # ---------- build ----------
 FROM base AS builder
 WORKDIR /app
+ENV NEXT_OUTPUT=standalone
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npm run build
@@ -27,10 +28,9 @@ ENV NODE_ENV=production
 ENV PORT=3000
 ENV TMP_DIR=/tmp
 
-# Copy built assets
+# Copy standalone output
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
-COPY --from=builder /app/public ./public
 
 EXPOSE 3000
 

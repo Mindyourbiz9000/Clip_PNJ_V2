@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: quickclip
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: MAX_CLIP_SECONDS
+        value: "60"
+      - key: FFMPEG_TIMEOUT_SECONDS
+        value: "120"
+      - key: MAX_CONCURRENT
+        value: "1"
+      - key: TMP_DIR
+        value: /tmp
