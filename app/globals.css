@@ -1,3 +1,20 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* ── Highlight Counter ── */
+
+@keyframes digit-roll-in {
+  0% {
+    transform: translateY(-80%);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.counter-digit-roll {
+  animation: digit-roll-in 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}

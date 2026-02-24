@@ -443,6 +443,39 @@ function ChatReplayPanel({
 }
 
 /* ------------------------------------------------------------------ */
+/*  Highlight Scan Counter                                             */
+/* ------------------------------------------------------------------ */
+
+function HighlightScanCounter({ value }: { value: number }) {
+  const digits = String(value).padStart(5, "0").split("");
+
+  return (
+    <div className="flex flex-col items-center gap-2">
+      {/* Digit display */}
+      <div className="flex gap-1">
+        {digits.map((digit, i) => (
+          <div
+            key={i}
+            className="flex h-10 w-8 items-center justify-center overflow-hidden rounded-md border border-gray-700 bg-gray-800 shadow-inner"
+          >
+            <span
+              key={`${i}-${digit}-${value}`}
+              className="counter-digit-roll select-none text-lg font-bold tabular-nums text-purple-300"
+            >
+              {digit}
+            </span>
+          </div>
+        ))}
+      </div>
+      {/* Label */}
+      <span className="text-xs font-medium tracking-wide text-gray-500">
+        Highlight scans performed
+      </span>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /*  Main Page                                                          */
 /* ------------------------------------------------------------------ */
 
@@ -456,6 +489,13 @@ export default function Home() {
   const [totalMessages, setTotalMessages] = useState(0);
   const [selectedMomentIdx, setSelectedMomentIdx] = useState<number | null>(null);
 
+  // Highlight detection counter (persisted in localStorage)
+  const [analyzeCount, setAnalyzeCount] = useState(0);
+  useEffect(() => {
+    const stored = localStorage.getItem("analyzeCount");
+    if (stored) setAnalyzeCount(parseInt(stored, 10) || 0);
+  }, []);
+
   // Video / chat sync state
   const [currentTime, setCurrentTime] = useState(0);
   const playerRef = useRef<any>(null);
@@ -468,6 +508,13 @@ export default function Home() {
     setAnalyzeError("");
     setMoments([]);
     setSelectedMomentIdx(null);
+
+    // Increment the mechanical counter
+    setAnalyzeCount((prev) => {
+      const next = prev + 1;
+      localStorage.setItem("analyzeCount", String(next));
+      return next;
+    });
 
     try {
       const res = await fetch("/api/analyze", {
@@ -720,6 +767,11 @@ export default function Home() {
               No clear highlights found. The chat may be too quiet or evenly distributed.
             </p>
           )}
+        </div>
+
+        {/* Highlight scan counter */}
+        <div className="mt-6 flex justify-center">
+          <HighlightScanCounter value={analyzeCount} />
         </div>
 
         {/* Footer */}
