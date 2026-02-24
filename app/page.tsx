@@ -129,12 +129,19 @@ function TwitchPlayer({
 /*  Chat Replay Panel (live-page-chat style)                          */
 /* ------------------------------------------------------------------ */
 
+interface SearchHit {
+  offsetSeconds: number;
+  text: string;
+}
+
 function ChatReplayPanel({
   url,
   currentTime,
+  onSeek,
 }: {
   url: string;
   currentTime: number;
+  onSeek?: (seconds: number) => void;
 }) {
   const [messages, setMessages] = useState<ChatMsg[]>([]);
   const [loading, setLoading] = useState(false);
@@ -144,6 +151,14 @@ function ChatReplayPanel({
   const containerRef = useRef<HTMLDivElement>(null);
   const [autoScroll, setAutoScroll] = useState(true);
   const fetchingRef = useRef(false);
+
+  // Search state
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<SearchHit[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState("");
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   // Show messages up to current time + small buffer
   const visibleMessages = messages.filter((m) => m.offsetSeconds <= currentTime + 2);
@@ -215,15 +230,123 @@ function ChatReplayPanel({
     setAutoScroll(isNearBottom);
   }
 
+  async function handleSearch(e: React.FormEvent) {
+    e.preventDefault();
+    const q = searchQuery.trim();
+    if (q.length < 2) return;
+
+    setSearching(true);
+    setSearchError("");
+    setSearchResults([]);
+
+    try {
+      const params = new URLSearchParams({ url, q });
+      const res = await fetch(`/api/chat/search?${params}`);
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({ error: "Search failed" }));
+        throw new Error(data.error);
+      }
+      const data = await res.json();
+      setSearchResults(data.hits ?? []);
+    } catch (err) {
+      setSearchError(err instanceof Error ? err.message : "Search failed");
+    } finally {
+      setSearching(false);
+    }
+  }
+
+  function jumpToTime(seconds: number) {
+    if (onSeek) {
+      onSeek(seconds);
+    }
+    setSearchOpen(false);
+  }
+
   return (
     <div className="flex h-full flex-col rounded-lg border border-gray-700 bg-gray-900">
       {/* Header */}
       <div className="flex items-center justify-between border-b border-gray-700 px-3 py-2">
         <span className="text-sm font-semibold text-gray-300">Chat Replay</span>
-        <span className="text-xs text-gray-500">
-          {visibleMessages.length} / {messages.length} msgs
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-gray-500">
+            {visibleMessages.length} / {messages.length} msgs
+          </span>
+          <button
+            onClick={() => {
+              setSearchOpen((prev) => !prev);
+              if (!searchOpen) {
+                setTimeout(() => searchInputRef.current?.focus(), 50);
+              }
+            }}
+            title="Search chat"
+            className="rounded p-1 text-gray-400 hover:bg-gray-700 hover:text-gray-200 transition"
+          >
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z" />
+            </svg>
+          </button>
+        </div>
       </div>
+
+      {/* Search panel */}
+      {searchOpen && (
+        <div className="border-b border-gray-700 bg-gray-800/60 px-3 py-2 space-y-2">
+          <form onSubmit={handleSearch} className="flex gap-2">
+            <input
+              ref={searchInputRef}
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search chat messages..."
+              className="flex-1 rounded border border-gray-600 bg-gray-900 px-2.5 py-1.5 text-xs text-white placeholder-gray-500 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+            />
+            <button
+              type="submit"
+              disabled={searching || searchQuery.trim().length < 2}
+              className="rounded bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition"
+            >
+              {searching ? "..." : "Search"}
+            </button>
+          </form>
+
+          {/* Search results */}
+          {searching && (
+            <div className="flex items-center gap-1.5 text-xs text-gray-400">
+              <svg className="h-3 w-3 animate-spin" viewBox="0 0 24 24" fill="none">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+              Scanning full chat replay...
+            </div>
+          )}
+
+          {searchError && <p className="text-xs text-red-400">{searchError}</p>}
+
+          {!searching && searchResults.length > 0 && (
+            <div className="max-h-48 overflow-y-auto space-y-0.5">
+              <p className="text-xs text-gray-500 mb-1">
+                {searchResults.length} result{searchResults.length !== 1 ? "s" : ""} found
+              </p>
+              {searchResults.map((hit, i) => (
+                <button
+                  key={`${hit.offsetSeconds}-${i}`}
+                  onClick={() => jumpToTime(hit.offsetSeconds)}
+                  className="flex w-full items-start gap-2 rounded px-2 py-1 text-left text-xs hover:bg-gray-700 transition"
+                >
+                  <span className="shrink-0 font-mono text-indigo-400">
+                    {formatChatTime(hit.offsetSeconds)}
+                  </span>
+                  <span className="text-gray-300 truncate">{hit.text}</span>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {!searching && !searchError && searchResults.length === 0 && searchQuery.trim().length >= 2 && (
+            <p className="text-xs text-gray-500">No results. Try a different keyword.</p>
+          )}
+        </div>
+      )}
 
       {/* Messages */}
       <div
@@ -399,7 +522,20 @@ export default function Home() {
             </div>
             {/* Chat Replay Panel - 1/3 width, matches video height */}
             <div className="h-[400px] lg:h-auto lg:w-1/3 lg:aspect-video">
-              <ChatReplayPanel url={url} currentTime={currentTime} />
+              <ChatReplayPanel
+                url={url}
+                currentTime={currentTime}
+                onSeek={(seconds) => {
+                  if (playerRef.current) {
+                    try {
+                      playerRef.current.seek(seconds);
+                      playerRef.current.play();
+                    } catch {
+                      // Player might not support seek yet
+                    }
+                  }
+                }}
+              />
             </div>
           </div>
         )}
