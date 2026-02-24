@@ -23,6 +23,22 @@ export function extractVideoId(url: string): string | null {
   return match ? match[1] : null;
 }
 
+const MAX_RETRIES = 3;
+const RETRY_BASE_MS = 1000;
+
+/** Returns true for errors that are worth retrying (transient / rate-limit). */
+function isRetryable(err: unknown): boolean {
+  if (err instanceof Error) {
+    const msg = err.message.toLowerCase();
+    return msg.includes("timeout") || msg.includes("rate") || msg.includes("503") || msg.includes("502");
+  }
+  return false;
+}
+
+function sleep(ms: number) {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
 async function fetchCommentPage(
   videoId: string,
   cursor?: string,
@@ -35,58 +51,88 @@ async function fetchCommentPage(
     variables.contentOffsetSeconds = offsetSeconds ?? 0;
   }
 
-  const res = await fetch(TWITCH_GQL_URL, {
-    method: "POST",
-    headers: {
-      "Client-Id": TWITCH_CLIENT_ID,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify([
-      {
-        operationName: "VideoCommentsByOffsetOrCursor",
-        variables,
-        extensions: {
-          persistedQuery: { version: 1, sha256Hash: GQL_HASH },
-        },
+  const payload = JSON.stringify([
+    {
+      operationName: "VideoCommentsByOffsetOrCursor",
+      variables,
+      extensions: {
+        persistedQuery: { version: 1, sha256Hash: GQL_HASH },
       },
-    ]),
-  });
+    },
+  ]);
 
-  if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    throw new Error(`Twitch GQL API returned ${res.status}: ${body.slice(0, 200)}`);
+  let lastError: Error | null = null;
+
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    if (attempt > 0) {
+      await sleep(RETRY_BASE_MS * 2 ** (attempt - 1)); // 1s, 2s, 4s
+    }
+
+    try {
+      const res = await fetch(TWITCH_GQL_URL, {
+        method: "POST",
+        headers: {
+          "Client-Id": TWITCH_CLIENT_ID,
+          "Content-Type": "application/json",
+        },
+        body: payload,
+      });
+
+      if (!res.ok) {
+        const body = await res.text().catch(() => "");
+        const err = new Error(`Twitch GQL API returned ${res.status}: ${body.slice(0, 200)}`);
+        if (attempt < MAX_RETRIES && (res.status === 502 || res.status === 503 || res.status === 429)) {
+          lastError = err;
+          continue;
+        }
+        throw err;
+      }
+
+      const json = await res.json();
+      const data = json[0];
+
+      // Check for GQL-level errors (e.g. bad persisted query hash, service timeout)
+      if (data?.errors) {
+        const msg = data.errors.map((e: any) => e.message).join("; ");
+        const err = new Error(`Twitch GQL error: ${msg}`);
+        if (attempt < MAX_RETRIES && isRetryable(err)) {
+          lastError = err;
+          continue;
+        }
+        throw err;
+      }
+
+      const comments = data?.data?.video?.comments;
+
+      if (!comments || !comments.edges || comments.edges.length === 0) {
+        return { messages: [], nextCursor: null };
+      }
+
+      const messages: ChatMessage[] = comments.edges.map((edge: any) => {
+        const frags: ChatFragment[] = edge.node.message.fragments ?? [];
+        return {
+          offsetSeconds: edge.node.contentOffsetSeconds,
+          author: edge.node.commenter?.displayName ?? edge.node.commenter?.login ?? "",
+          fragments: frags,
+          text: frags.map((f: ChatFragment) => f.text).join(""),
+        };
+      });
+
+      const nextCursor = comments.pageInfo.hasNextPage
+        ? comments.edges[comments.edges.length - 1]?.cursor
+        : null;
+
+      return { messages, nextCursor };
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+      if (attempt < MAX_RETRIES && isRetryable(lastError)) {
+        continue;
+      }
+      throw lastError;
+    }
   }
 
-  const json = await res.json();
-  const data = json[0];
-
-  // Check for GQL-level errors (e.g. bad persisted query hash)
-  if (data?.errors) {
-    const msg = data.errors.map((e: any) => e.message).join("; ");
-    throw new Error(`Twitch GQL error: ${msg}`);
-  }
-
-  const comments = data?.data?.video?.comments;
-
-  if (!comments || !comments.edges || comments.edges.length === 0) {
-    return { messages: [], nextCursor: null };
-  }
-
-  const messages: ChatMessage[] = comments.edges.map((edge: any) => {
-    const frags: ChatFragment[] = edge.node.message.fragments ?? [];
-    return {
-      offsetSeconds: edge.node.contentOffsetSeconds,
-      author: edge.node.commenter?.displayName ?? edge.node.commenter?.login ?? "",
-      fragments: frags,
-      text: frags.map((f: ChatFragment) => f.text).join(""),
-    };
-  });
-
-  const nextCursor = comments.pageInfo.hasNextPage
-    ? comments.edges[comments.edges.length - 1]?.cursor
-    : null;
-
-  return { messages, nextCursor };
+  throw lastError ?? new Error("Twitch GQL fetch failed after retries");
 }
 
 /**
