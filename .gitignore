@@ -10,6 +10,9 @@ coverage/
 .vscode/
 .idea/
 
+# TypeScript
+*.tsbuildinfo
+
 # Next.js
 .next/
 out/
