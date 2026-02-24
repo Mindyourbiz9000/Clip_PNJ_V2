@@ -79,6 +79,41 @@ async function fetchCommentPage(
 }
 
 /**
+ * Fetches a batch of chat messages starting from a given offset.
+ * Returns the messages and a cursor for fetching the next batch.
+ */
+export async function fetchChatBatch(
+  videoId: string,
+  opts?: { startOffsetSeconds?: number; cursor?: string; maxPages?: number }
+): Promise<{ messages: ChatMessage[]; nextCursor: string | null }> {
+  const maxPages = opts?.maxPages ?? 3; // fetch a few pages per batch
+  const allMessages: ChatMessage[] = [];
+  let currentCursor: string | undefined = opts?.cursor ?? undefined;
+
+  // First request: use offset or cursor
+  const first = await fetchCommentPage(
+    videoId,
+    currentCursor,
+    currentCursor ? undefined : (opts?.startOffsetSeconds ?? 0)
+  );
+  allMessages.push(...first.messages);
+  currentCursor = first.nextCursor ?? undefined;
+
+  let pagesProcessed = 1;
+
+  // Fetch subsequent pages
+  while (currentCursor && pagesProcessed < maxPages) {
+    const page = await fetchCommentPage(videoId, currentCursor);
+    if (page.messages.length === 0) break;
+    allMessages.push(...page.messages);
+    currentCursor = page.nextCursor ?? undefined;
+    pagesProcessed++;
+  }
+
+  return { messages: allMessages, nextCursor: currentCursor ?? null };
+}
+
+/**
  * Iterates through ALL chat messages for a VOD, calling onBatch for each page.
  * Stops after maxPages or when there are no more messages.
  */
