@@ -520,7 +520,7 @@ export function findHypeMoments(
 
     // Shift start back 15s to account for chat reaction delay —
     // viewers react AFTER the moment happens on stream.
-    const reactionDelay = 15;
+    const reactionDelay = 22;
     const start = Math.max(0, entry.key - reactionDelay);
     const end = start + clipDuration;
 
