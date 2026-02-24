@@ -59,6 +59,8 @@ const CATEGORY_PATTERNS: Record<Exclude<HighlightTag, "spam">, CategoryPatterns>
       /he(he){2,}/i,
       /ja(ja){2,}/i,
       /x[dD]{1,}/,
+      // Burp reactions (chat spams "EUWA" when streamer burps)
+      /\beu+wa+\b/i,
       // Emojis — laughter / comedy
       /😂|🤣|😆|😹/,
     ],
