@@ -443,97 +443,34 @@ function ChatReplayPanel({
 }
 
 /* ------------------------------------------------------------------ */
-/*  Mechanical Counter (old-school odometer)                           */
+/*  Highlight Scan Counter                                             */
 /* ------------------------------------------------------------------ */
 
-function MechanicalCounter({ value }: { value: number }) {
+function HighlightScanCounter({ value }: { value: number }) {
   const digits = String(value).padStart(5, "0").split("");
 
   return (
-    <div className="inline-flex flex-col items-center gap-1">
-      {/* Label plate */}
-      <div
-        className="rounded px-3 py-0.5 text-[9px] font-bold uppercase tracking-[0.2em]"
-        style={{
-          background: "linear-gradient(180deg, #2a2a2a 0%, #1a1a1a 100%)",
-          color: "#aaa",
-          border: "1px solid #444",
-          letterSpacing: "0.15em",
-        }}
-      >
-        Detections
-      </div>
-
-      {/* Counter housing */}
-      <div
-        className="relative inline-flex items-center rounded-md p-[2px]"
-        style={{
-          background: "linear-gradient(180deg, #4a4a4a 0%, #222 40%, #1a1a1a 100%)",
-          boxShadow:
-            "0 4px 12px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.08), 0 1px 0 rgba(255,255,255,0.05)",
-          border: "1px solid #555",
-        }}
-      >
-        {/* Corner screws */}
-        <div className="counter-screw absolute -left-[3px] -top-[3px]" />
-        <div className="counter-screw absolute -right-[3px] -top-[3px]" />
-        <div className="counter-screw absolute -bottom-[3px] -left-[3px]" />
-        <div className="counter-screw absolute -bottom-[3px] -right-[3px]" />
-
-        {/* Digit windows */}
-        <div className="flex gap-[1px]">
-          {digits.map((digit, i) => (
-            <div
-              key={i}
-              className="relative flex items-center justify-center overflow-hidden"
-              style={{
-                width: "26px",
-                height: "38px",
-                background: "linear-gradient(180deg, #0a0a0a 0%, #1a1a1a 40%, #111 60%, #0a0a0a 100%)",
-                borderRadius: i === 0 ? "4px 0 0 4px" : i === digits.length - 1 ? "0 4px 4px 0" : "0",
-                boxShadow: "inset 0 2px 4px rgba(0,0,0,0.8), inset 0 -2px 4px rgba(0,0,0,0.4)",
-              }}
+    <div className="flex flex-col items-center gap-2">
+      {/* Digit display */}
+      <div className="flex gap-1">
+        {digits.map((digit, i) => (
+          <div
+            key={i}
+            className="flex h-10 w-8 items-center justify-center overflow-hidden rounded-md border border-gray-700 bg-gray-800 shadow-inner"
+          >
+            <span
+              key={`${i}-${digit}-${value}`}
+              className="counter-digit-roll select-none text-lg font-bold tabular-nums text-purple-300"
             >
-              {/* Top shadow (depth illusion) */}
-              <div
-                className="pointer-events-none absolute inset-x-0 top-0 h-[30%]"
-                style={{
-                  background: "linear-gradient(180deg, rgba(0,0,0,0.6) 0%, transparent 100%)",
-                }}
-              />
-              {/* Bottom shadow */}
-              <div
-                className="pointer-events-none absolute inset-x-0 bottom-0 h-[30%]"
-                style={{
-                  background: "linear-gradient(0deg, rgba(0,0,0,0.6) 0%, transparent 100%)",
-                }}
-              />
-              {/* Center split line (like a real flip counter) */}
-              <div
-                className="pointer-events-none absolute inset-x-0 top-[49%] h-[1px]"
-                style={{ background: "rgba(0,0,0,0.7)" }}
-              />
-              <div
-                className="pointer-events-none absolute inset-x-0 top-[50%] h-[1px]"
-                style={{ background: "rgba(255,255,255,0.04)" }}
-              />
-
-              {/* The digit itself */}
-              <span
-                key={`${i}-${digit}-${value}`}
-                className="counter-digit-roll relative z-10 select-none text-xl font-bold tabular-nums"
-                style={{
-                  fontFamily: "'Courier New', 'Lucida Console', monospace",
-                  color: "#e8e8e8",
-                  textShadow: "0 0 8px rgba(255,255,255,0.15), 0 1px 2px rgba(0,0,0,0.8)",
-                }}
-              >
-                {digit}
-              </span>
-            </div>
-          ))}
-        </div>
+              {digit}
+            </span>
+          </div>
+        ))}
       </div>
+      {/* Label */}
+      <span className="text-xs font-medium tracking-wide text-gray-500">
+        Highlight scans performed
+      </span>
     </div>
   );
 }
@@ -718,10 +655,7 @@ export default function Home() {
 
         {/* Chat Analysis & Highlights */}
         <div className="rounded-2xl bg-gray-900 p-6 shadow-xl">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-white">Chat Analysis &amp; Highlights</h2>
-            <MechanicalCounter value={analyzeCount} />
-          </div>
+          <h2 className="mb-4 text-lg font-semibold text-white">Chat Analysis &amp; Highlights</h2>
 
           {/* Detect Highlights button */}
           {isTwitch && (
@@ -833,6 +767,11 @@ export default function Home() {
               No clear highlights found. The chat may be too quiet or evenly distributed.
             </p>
           )}
+        </div>
+
+        {/* Highlight scan counter */}
+        <div className="mt-6 flex justify-center">
+          <HighlightScanCounter value={analyzeCount} />
         </div>
 
         {/* Footer */}

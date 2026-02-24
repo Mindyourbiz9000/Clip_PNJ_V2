@@ -2,42 +2,19 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ── Mechanical Counter (old-school odometer) ── */
+/* ── Highlight Counter ── */
 
-@keyframes digit-roll {
+@keyframes digit-roll-in {
   0% {
-    transform: translateY(-100%);
+    transform: translateY(-80%);
     opacity: 0;
-  }
-  30% {
-    opacity: 1;
   }
   100% {
     transform: translateY(0);
+    opacity: 1;
   }
 }
 
 .counter-digit-roll {
-  animation: digit-roll 0.5s cubic-bezier(0.2, 0.8, 0.3, 1);
-}
-
-/* Screw indentation for the mechanical housing */
-.counter-screw {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: radial-gradient(circle at 35% 35%, #888, #333);
-  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.15),
-    0 1px 2px rgba(0, 0, 0, 0.5);
-}
-.counter-screw::after {
-  content: "";
-  display: block;
-  position: relative;
-  top: 2px;
-  left: 1px;
-  width: 4px;
-  height: 1px;
-  background: #222;
-  border-radius: 1px;
+  animation: digit-roll-in 0.4s cubic-bezier(0.22, 1, 0.36, 1);
 }
