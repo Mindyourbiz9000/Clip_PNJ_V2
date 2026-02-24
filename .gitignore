@@ -9,3 +9,10 @@ dist/
 coverage/
 .vscode/
 .idea/
+
+# Next.js
+.next/
+out/
+
+# Vercel
+.vercel
