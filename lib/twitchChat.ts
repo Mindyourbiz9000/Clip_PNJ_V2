@@ -4,7 +4,7 @@
 
 const TWITCH_GQL_URL = "https://gql.twitch.tv/gql";
 const TWITCH_CLIENT_ID = "kimne78kx3ncx6brgo4mv6wki5h1ko";
-const GQL_HASH = "b70a3591ff0f4e0313d126c6a1502d79a1c02baebb288227c81f04a6f4077b48";
+const GQL_HASH = "b70a3591ff0f4e0313d126c6a1502d79a1c02baebb288227c582044aa76adf6a";
 
 export interface ChatFragment {
   text: string;
@@ -52,11 +52,20 @@ async function fetchCommentPage(
   });
 
   if (!res.ok) {
-    throw new Error(`Twitch GQL API returned ${res.status}`);
+    const body = await res.text().catch(() => "");
+    throw new Error(`Twitch GQL API returned ${res.status}: ${body.slice(0, 200)}`);
   }
 
   const json = await res.json();
-  const comments = json[0]?.data?.video?.comments;
+  const data = json[0];
+
+  // Check for GQL-level errors (e.g. bad persisted query hash)
+  if (data?.errors) {
+    const msg = data.errors.map((e: any) => e.message).join("; ");
+    throw new Error(`Twitch GQL error: ${msg}`);
+  }
+
+  const comments = data?.data?.video?.comments;
 
   if (!comments || !comments.edges || comments.edges.length === 0) {
     return { messages: [], nextCursor: null };

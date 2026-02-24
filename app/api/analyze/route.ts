@@ -64,9 +64,10 @@ export async function POST(req: NextRequest) {
       // Return partial results from what we've processed so far
       console.log("Analysis timed out, returning partial results");
     } else {
-      console.error("Chat fetch error:", err);
+      const message = err instanceof Error ? err.message : String(err);
+      console.error("Chat fetch error:", message);
       return jsonError(
-        "Failed to fetch chat data. The video may be unavailable or have no chat replay.",
+        `Failed to fetch chat: ${message}`,
         502
       );
     }
