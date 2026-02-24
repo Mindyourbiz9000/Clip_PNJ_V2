@@ -146,6 +146,9 @@ function ChatReplayPanel({
   const [autoScroll, setAutoScroll] = useState(true);
   const fetchingRef = useRef(false);
 
+  // Show messages up to current time + small buffer
+  const visibleMessages = messages.filter((m) => m.offsetSeconds <= currentTime + 2);
+
   // Fetch initial chat batch when URL loads
   useEffect(() => {
     if (!url || !isTwitchVodUrl(url)) return;
@@ -165,24 +168,11 @@ function ChatReplayPanel({
     }
   }, [currentTime]);
 
-  // Auto-scroll to the message closest to current time
+  // Auto-scroll: keep the chat scrolled to the bottom as new messages appear
   useEffect(() => {
-    if (!autoScroll || !containerRef.current || messages.length === 0) return;
-    const container = containerRef.current;
-    const messageEls = container.querySelectorAll("[data-offset]");
-    let target: Element | null = null;
-    for (const el of messageEls) {
-      const offset = parseFloat(el.getAttribute("data-offset") ?? "0");
-      if (offset <= currentTime) {
-        target = el;
-      } else {
-        break;
-      }
-    }
-    if (target) {
-      target.scrollIntoView({ behavior: "smooth", block: "nearest" });
-    }
-  }, [currentTime, autoScroll, messages]);
+    if (!autoScroll || !chatEndRef.current) return;
+    chatEndRef.current.scrollIntoView({ behavior: "smooth" });
+  }, [visibleMessages.length, autoScroll]);
 
   async function fetchChat(offset: number, cursor?: string) {
     if (fetchingRef.current) return;
@@ -225,9 +215,6 @@ function ChatReplayPanel({
     const isNearBottom = scrollHeight - scrollTop - clientHeight < 80;
     setAutoScroll(isNearBottom);
   }
-
-  // Show messages up to current time + small buffer
-  const visibleMessages = messages.filter((m) => m.offsetSeconds <= currentTime + 2);
 
   return (
     <div className="flex h-full flex-col rounded-lg border border-gray-700 bg-gray-900">
@@ -440,17 +427,17 @@ export default function Home() {
 
         {/* Video + Chat side-by-side (Twitch VODs only) */}
         {isTwitch && videoId && (
-          <div className="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-3">
-            {/* Video Player - 2/3 width */}
-            <div className="lg:col-span-2">
+          <div className="mb-6 flex flex-col gap-4 lg:flex-row">
+            {/* Video Player - takes 2/3 width, sets the row height */}
+            <div className="lg:w-2/3">
               <TwitchPlayer
                 videoId={videoId}
                 onTimeUpdate={setCurrentTime}
                 playerRef={playerRef}
               />
             </div>
-            {/* Chat Replay Panel - 1/3 width */}
-            <div className="h-[400px] lg:h-auto">
+            {/* Chat Replay Panel - 1/3 width, matches video height */}
+            <div className="h-[400px] lg:h-auto lg:w-1/3 lg:aspect-video">
               <ChatReplayPanel url={url} currentTime={currentTime} />
             </div>
           </div>
