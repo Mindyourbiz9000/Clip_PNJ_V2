@@ -4,14 +4,29 @@ import { useState, useEffect, useRef } from "react";
 
 type AnalyzeStatus = "idle" | "analyzing" | "done" | "error";
 
+type HighlightTag = "fun" | "hype" | "shock" | "love" | "toxic" | "spam";
+
 interface HypeMoment {
   startSec: number;
   endSec: number;
   score: number;
   messagesPerSec: number;
   messageCount: number;
+  tag: HighlightTag;
+  categoryScores: Record<string, number>;
+  burstScore: number;
   sampleMessages: string[];
 }
+
+/** Visual config for each highlight tag */
+const TAG_CONFIG: Record<HighlightTag, { label: string; emoji: string; color: string; bg: string; border: string; gradient: string }> = {
+  fun:   { label: "Fun",   emoji: "😂", color: "text-yellow-300", bg: "bg-yellow-500/15", border: "border-yellow-500/40", gradient: "from-yellow-500 to-amber-500" },
+  hype:  { label: "Hype",  emoji: "🔥", color: "text-orange-300", bg: "bg-orange-500/15", border: "border-orange-500/40", gradient: "from-orange-500 to-red-500" },
+  shock: { label: "Shock", emoji: "😱", color: "text-cyan-300",   bg: "bg-cyan-500/15",   border: "border-cyan-500/40",   gradient: "from-cyan-500 to-blue-500" },
+  love:  { label: "Love",  emoji: "❤️", color: "text-pink-300",   bg: "bg-pink-500/15",   border: "border-pink-500/40",   gradient: "from-pink-500 to-rose-500" },
+  toxic: { label: "Toxic", emoji: "☠️", color: "text-red-300",    bg: "bg-red-500/15",    border: "border-red-500/40",    gradient: "from-red-500 to-rose-600" },
+  spam:  { label: "Spam",  emoji: "🌊", color: "text-violet-300", bg: "bg-violet-500/15", border: "border-violet-500/40", gradient: "from-violet-500 to-purple-500" },
+};
 
 interface ChatMsg {
   offsetSeconds: number;
@@ -430,7 +445,7 @@ export default function Home() {
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
               </svg>
-              Scanning chat replay for reactions, emotes &amp; hype moments...
+              Scanning chat for laughter, hype, shock, love, toxicity &amp; spam bursts...
             </div>
           )}
 
@@ -460,6 +475,7 @@ export default function Home() {
                 {moments.map((m, i) => {
                   const pct = Math.round((m.score / maxScore) * 100);
                   const isSelected = selectedMomentIdx === i;
+                  const tagCfg = TAG_CONFIG[m.tag] ?? TAG_CONFIG.hype;
                   return (
                     <button
                       key={i}
@@ -472,19 +488,34 @@ export default function Home() {
                       }`}
                     >
                       <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium text-white">
-                          {formatTime(m.startSec)} &ndash; {formatTime(m.endSec)}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-medium text-white">
+                            {formatTime(m.startSec)} &ndash; {formatTime(m.endSec)}
+                          </span>
+                          {/* Highlight type tag */}
+                          <span
+                            className={`inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[10px] font-semibold ${tagCfg.color} ${tagCfg.bg} ${tagCfg.border} border`}
+                          >
+                            <span>{tagCfg.emoji}</span>
+                            <span>{tagCfg.label}</span>
+                          </span>
+                        </div>
                         <span className="text-xs text-gray-400">
                           {m.messageCount} msgs &middot; {m.messagesPerSec}/s
                         </span>
                       </div>
+                      {/* Score bar with tag-specific gradient */}
                       <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-gray-700">
                         <div
-                          className="h-full rounded-full bg-gradient-to-r from-purple-500 to-pink-500"
+                          className={`h-full rounded-full bg-gradient-to-r ${tagCfg.gradient}`}
                           style={{ width: `${pct}%` }}
                         />
                       </div>
+                      {m.burstScore > 0 && (
+                        <p className="mt-1 text-[10px] text-violet-400">
+                          Burst detected &middot; {m.burstScore.toFixed(1)} intensity
+                        </p>
+                      )}
                       {m.sampleMessages.length > 0 && (
                         <p className="mt-1 truncate text-xs text-gray-500">
                           {m.sampleMessages.slice(0, 3).join(" · ")}
