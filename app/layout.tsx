@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "QuickClip",
+  title: "Clip_PNJ",
   description: "Generate downloadable clips from a video URL",
 };
 
