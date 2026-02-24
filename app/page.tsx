@@ -163,7 +163,6 @@ function ChatReplayPanel({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [nextCursor, setNextCursor] = useState<string | null>(null);
-  const chatEndRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [autoScroll, setAutoScroll] = useState(true);
   const fetchingRef = useRef(false);
@@ -198,10 +197,17 @@ function ChatReplayPanel({
     }
   }, [currentTime]);
 
-  // Auto-scroll: keep the chat scrolled to the bottom as new messages appear
+  // Auto-scroll: keep the chat scrolled to the bottom as new messages appear.
+  // IMPORTANT: We scroll the container directly instead of using
+  // scrollIntoView, because scrollIntoView also scrolls the *window*,
+  // which causes the page to jump down after the user clicks a highlight
+  // and the page has just scrolled up to the video.
   useEffect(() => {
-    if (!autoScroll || !chatEndRef.current) return;
-    chatEndRef.current.scrollIntoView({ behavior: "smooth" });
+    if (!autoScroll || !containerRef.current) return;
+    containerRef.current.scrollTo({
+      top: containerRef.current.scrollHeight,
+      behavior: "smooth",
+    });
   }, [visibleMessages.length, autoScroll]);
 
   async function fetchChat(offset: number, cursor?: string) {
@@ -404,7 +410,6 @@ function ChatReplayPanel({
             )}
           </div>
         ))}
-        <div ref={chatEndRef} />
         {loading && (
           <div className="flex items-center gap-1.5 py-2 text-xs text-gray-500">
             <svg className="h-3 w-3 animate-spin" viewBox="0 0 24 24" fill="none">
@@ -421,7 +426,12 @@ function ChatReplayPanel({
         <button
           onClick={() => {
             setAutoScroll(true);
-            chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+            if (containerRef.current) {
+              containerRef.current.scrollTo({
+                top: containerRef.current.scrollHeight,
+                behavior: "smooth",
+              });
+            }
           }}
           className="border-t border-gray-700 px-3 py-1.5 text-xs text-purple-400 hover:bg-gray-800 transition"
         >
