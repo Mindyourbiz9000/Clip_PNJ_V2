@@ -497,7 +497,22 @@ export default function Home() {
         <div className="mb-6">
           <h1 className="text-3xl font-bold tracking-tight text-white">QuickClip</h1>
           <p className="mt-1 text-sm text-gray-400">
-            Paste a Twitch VOD URL to preview video, browse chat, and detect highlight moments.
+            Designed by{" "}
+            <a
+              href="https://www.twitch.tv/inespnj"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-purple-400 hover:text-purple-300 underline"
+            >
+              InesPNJ
+            </a>{" "}
+            community
+          </p>
+          <p className="mt-2 text-xs text-gray-500">
+            🇫🇷 Si vous êtes déjà connecté à Twitch, vous pouvez accéder à la fonctionnalité de clip. Si vous ne voyez pas l&apos;option clip, veuillez vous connecter à Twitch dans une autre fenêtre.
+          </p>
+          <p className="mt-1 text-xs text-gray-500">
+            🇬🇧 If you are already logged in to Twitch, you can access the clip functionality. If you don&apos;t see the clip option, please make sure you log in to Twitch in another window.
           </p>
         </div>
 
