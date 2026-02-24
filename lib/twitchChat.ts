@@ -3,8 +3,8 @@
  */
 
 const TWITCH_GQL_URL = "https://gql.twitch.tv/gql";
-const TWITCH_CLIENT_ID = "kimne78kx3ncx6brgo4mv6wki5h1ko";
-const GQL_HASH = "b70a3591ff0f4e0313d126c6a1502d79a1c02baebb288227c81f04a6f4077b48";
+const TWITCH_CLIENT_ID = "kd1unb4b3q4t58fwlpcbzcbnm76a8fp";
+const GQL_HASH = "b70a3591ff0f4e0313d126c6a1502d79a1c02baebb288227c582044aa76adf6a";
 
 export interface ChatFragment {
   text: string;
@@ -52,11 +52,20 @@ async function fetchCommentPage(
   });
 
   if (!res.ok) {
-    throw new Error(`Twitch GQL API returned ${res.status}`);
+    const body = await res.text().catch(() => "");
+    throw new Error(`Twitch GQL API returned ${res.status}: ${body.slice(0, 200)}`);
   }
 
   const json = await res.json();
-  const comments = json[0]?.data?.video?.comments;
+  const data = json[0];
+
+  // Check for GQL-level errors (e.g. bad persisted query hash)
+  if (data?.errors) {
+    const msg = data.errors.map((e: any) => e.message).join("; ");
+    throw new Error(`Twitch GQL error: ${msg}`);
+  }
+
+  const comments = data?.data?.video?.comments;
 
   if (!comments || !comments.edges || comments.edges.length === 0) {
     return { messages: [], nextCursor: null };
@@ -76,6 +85,41 @@ async function fetchCommentPage(
     : null;
 
   return { messages, nextCursor };
+}
+
+/**
+ * Fetches a batch of chat messages starting from a given offset.
+ * Returns the messages and a cursor for fetching the next batch.
+ */
+export async function fetchChatBatch(
+  videoId: string,
+  opts?: { startOffsetSeconds?: number; cursor?: string; maxPages?: number }
+): Promise<{ messages: ChatMessage[]; nextCursor: string | null }> {
+  const maxPages = opts?.maxPages ?? 3; // fetch a few pages per batch
+  const allMessages: ChatMessage[] = [];
+  let currentCursor: string | undefined = opts?.cursor ?? undefined;
+
+  // First request: use offset or cursor
+  const first = await fetchCommentPage(
+    videoId,
+    currentCursor,
+    currentCursor ? undefined : (opts?.startOffsetSeconds ?? 0)
+  );
+  allMessages.push(...first.messages);
+  currentCursor = first.nextCursor ?? undefined;
+
+  let pagesProcessed = 1;
+
+  // Fetch subsequent pages
+  while (currentCursor && pagesProcessed < maxPages) {
+    const page = await fetchCommentPage(videoId, currentCursor);
+    if (page.messages.length === 0) break;
+    allMessages.push(...page.messages);
+    currentCursor = page.nextCursor ?? undefined;
+    pagesProcessed++;
+  }
+
+  return { messages: allMessages, nextCursor: currentCursor ?? null };
 }
 
 /**
