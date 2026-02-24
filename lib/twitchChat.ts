@@ -13,6 +13,7 @@ export interface ChatFragment {
 
 export interface ChatMessage {
   offsetSeconds: number;
+  author: string;
   fragments: ChatFragment[];
   text: string;
 }
@@ -75,6 +76,7 @@ async function fetchCommentPage(
     const frags: ChatFragment[] = edge.node.message.fragments ?? [];
     return {
       offsetSeconds: edge.node.contentOffsetSeconds,
+      author: edge.node.commenter?.displayName ?? edge.node.commenter?.login ?? "",
       fragments: frags,
       text: frags.map((f: ChatFragment) => f.text).join(""),
     };
