@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { createReadStream } from "node:fs";
 import { stat } from "node:fs/promises";
 import { Readable } from "node:stream";
+import path from "node:path";
 
 import { validateUrl } from "@/lib/validateUrl";
 import { validateTimes } from "@/lib/time";
@@ -37,35 +38,49 @@ export async function POST(req: NextRequest) {
     return jsonError("Invalid format. Must be: landscape, vertical, or square.", 400);
   }
 
-  // Validate URL (async — includes DNS resolution for SSRF)
-  const urlResult = await validateUrl(url);
-  if (!urlResult.valid) {
-    return jsonError(urlResult.error, 400);
+  // Handle built-in sample video (no SSRF check needed)
+  const isSample = url === "sample";
+
+  let videoUrl: string;
+
+  if (isSample) {
+    const samplePath = path.join(process.cwd(), "public", "sample.mp4");
+    try {
+      await stat(samplePath);
+    } catch {
+      return jsonError("Sample video not found on server", 500);
+    }
+    videoUrl = samplePath;
+  } else {
+    // Validate URL (async — includes DNS resolution for SSRF)
+    const urlResult = await validateUrl(url);
+    if (!urlResult.valid) {
+      return jsonError(urlResult.error, 400);
+    }
+
+    // Resolve platform URLs (e.g. Twitch) to direct stream URLs
+    videoUrl = urlResult.url;
+    if (isSupportedPlatformUrl(videoUrl)) {
+      try {
+        videoUrl = await resolveStreamUrl(videoUrl);
+      } catch (err) {
+        if (err instanceof UrlResolveError) {
+          return jsonError(err.message, 400);
+        }
+        return jsonError("Failed to resolve video URL", 500);
+      }
+    }
   }
 
   // Validate times
   const shouldLimit = limit60 !== false; // default true
   const timeResult = validateTimes(start, end, shouldLimit);
   if ("error" in timeResult) {
-    const maxClip = parseInt(process.env.MAX_CLIP_SECONDS || "60", 10);
     const status = timeResult.error.includes("exceeds") ? 413 : 400;
     return jsonError(timeResult.error, status);
   }
 
   const { startSec, duration } = timeResult;
-
-  // Resolve platform URLs (e.g. Twitch) to direct stream URLs
-  let videoUrl = urlResult.url;
-  if (isSupportedPlatformUrl(videoUrl)) {
-    try {
-      videoUrl = await resolveStreamUrl(videoUrl);
-    } catch (err) {
-      if (err instanceof UrlResolveError) {
-        return jsonError(err.message, 400);
-      }
-      return jsonError("Failed to resolve video URL", 500);
-    }
-  }
 
   const { args, outPath } = buildFfmpegArgs({
     url: videoUrl,
