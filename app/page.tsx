@@ -483,6 +483,9 @@ export default function Home() {
 
   function selectMoment(moment: HypeMoment, index: number) {
     setSelectedMomentIdx(index);
+    // Remove focus from the clicked button so the browser doesn't
+    // scroll back down to it after our scroll-to-top completes.
+    (document.activeElement as HTMLElement)?.blur();
     // Scroll to top so the video player is visible
     window.scrollTo({ top: 0, behavior: "smooth" });
     // Seek the embedded player to this moment
