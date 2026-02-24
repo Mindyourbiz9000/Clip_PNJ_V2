@@ -482,12 +482,18 @@ export default function Home() {
   }
 
   function selectMoment(moment: HypeMoment, index: number) {
-    setSelectedMomentIdx(index);
     // Remove focus from the clicked button so the browser doesn't
-    // scroll back down to it after our scroll-to-top completes.
+    // try to keep the focused element visible.
     (document.activeElement as HTMLElement)?.blur();
-    // Scroll to top so the video player is visible
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    setSelectedMomentIdx(index);
+
+    // Wait for React to finish re-rendering (the selected highlight
+    // changes style) before scrolling, so the browser's layout-driven
+    // scroll doesn't fight ours.
+    requestAnimationFrame(() => {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    });
+
     // Seek the embedded player to this moment
     if (playerRef.current) {
       try {
