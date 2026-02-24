@@ -489,11 +489,13 @@ export default function Home() {
   const [totalMessages, setTotalMessages] = useState(0);
   const [selectedMomentIdx, setSelectedMomentIdx] = useState<number | null>(null);
 
-  // Highlight detection counter (persisted in localStorage)
+  // Highlight detection counter (persisted on server)
   const [analyzeCount, setAnalyzeCount] = useState(0);
   useEffect(() => {
-    const stored = localStorage.getItem("analyzeCount");
-    if (stored) setAnalyzeCount(parseInt(stored, 10) || 0);
+    fetch("/api/counter")
+      .then((r) => r.json())
+      .then((d) => setAnalyzeCount(d.count))
+      .catch(() => {});
   }, []);
 
   // Video / chat sync state
@@ -509,12 +511,11 @@ export default function Home() {
     setMoments([]);
     setSelectedMomentIdx(null);
 
-    // Increment the mechanical counter
-    setAnalyzeCount((prev) => {
-      const next = prev + 1;
-      localStorage.setItem("analyzeCount", String(next));
-      return next;
-    });
+    // Increment the global counter
+    fetch("/api/counter", { method: "POST" })
+      .then((r) => r.json())
+      .then((d) => setAnalyzeCount(d.count))
+      .catch(() => setAnalyzeCount((prev) => prev + 1));
 
     try {
       const res = await fetch("/api/analyze", {

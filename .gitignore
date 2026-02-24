@@ -19,3 +19,6 @@ out/
 
 # Vercel
 .vercel
+
+# Persistent data
+data/
