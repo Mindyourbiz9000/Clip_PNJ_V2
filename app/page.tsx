@@ -1,8 +1,7 @@
 "use client";
 
-import { useState, useEffect, useRef, type FormEvent } from "react";
+import { useState, useEffect, useRef } from "react";
 
-type Status = "idle" | "processing" | "success" | "error";
 type AnalyzeStatus = "idle" | "analyzing" | "done" | "error";
 
 interface HypeMoment {
@@ -295,17 +294,13 @@ function ChatReplayPanel({
 
 export default function Home() {
   const [url, setUrl] = useState("");
-  const [start, setStart] = useState("00:00:00");
-  const [format, setFormat] = useState("landscape");
-  const [status, setStatus] = useState<Status>("idle");
-  const [errorMsg, setErrorMsg] = useState("");
-  const [clipUrl, setClipUrl] = useState<string | null>(null);
 
   // Chat analysis state
   const [analyzeStatus, setAnalyzeStatus] = useState<AnalyzeStatus>("idle");
   const [analyzeError, setAnalyzeError] = useState("");
   const [moments, setMoments] = useState<HypeMoment[]>([]);
   const [totalMessages, setTotalMessages] = useState(0);
+  const [selectedMomentIdx, setSelectedMomentIdx] = useState<number | null>(null);
 
   // Video / chat sync state
   const [currentTime, setCurrentTime] = useState(0);
@@ -318,6 +313,7 @@ export default function Home() {
     setAnalyzeStatus("analyzing");
     setAnalyzeError("");
     setMoments([]);
+    setSelectedMomentIdx(null);
 
     try {
       const res = await fetch("/api/analyze", {
@@ -341,8 +337,8 @@ export default function Home() {
     }
   }
 
-  function selectMoment(moment: HypeMoment) {
-    setStart(formatTime(moment.startSec));
+  function selectMoment(moment: HypeMoment, index: number) {
+    setSelectedMomentIdx(index);
     // Seek the embedded player to this moment
     if (playerRef.current) {
       try {
@@ -354,61 +350,6 @@ export default function Home() {
     }
   }
 
-  // Compute end time as start + 60 seconds
-  function computeEnd(startStr: string): string {
-    const m = startStr.trim().match(/^(\d{1,2}):(\d{2}):(\d{2})$/);
-    if (!m) return "00:01:00";
-    const totalSec = parseInt(m[1], 10) * 3600 + parseInt(m[2], 10) * 60 + parseInt(m[3], 10) + 60;
-    return formatTime(totalSec);
-  }
-
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault();
-    setStatus("processing");
-    setErrorMsg("");
-    // Revoke previous clip URL to free memory
-    if (clipUrl) {
-      URL.revokeObjectURL(clipUrl);
-      setClipUrl(null);
-    }
-
-    const end = computeEnd(start);
-
-    try {
-      const clipPayload = url === "sample"
-        ? { url: "sample", start, end, format, limit60: true }
-        : { url, start, end, format, limit60: true };
-      const res = await fetch("/api/clip", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(clipPayload),
-      });
-
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({ error: "Unknown error" }));
-        throw new Error(data.error || `Server error ${res.status}`);
-      }
-
-      const blob = await res.blob();
-      const objectUrl = URL.createObjectURL(blob);
-      setClipUrl(objectUrl);
-      setStatus("success");
-    } catch (err) {
-      setStatus("error");
-      setErrorMsg(err instanceof Error ? err.message : "Something went wrong");
-    }
-  }
-
-  function handleDownload() {
-    if (!clipUrl) return;
-    const a = document.createElement("a");
-    a.href = clipUrl;
-    a.download = "quickclip.mp4";
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-  }
-
   const maxScore = moments.length > 0 ? Math.max(...moments.map((m) => m.score)) : 1;
 
   return (
@@ -418,7 +359,7 @@ export default function Home() {
         <div className="mb-6">
           <h1 className="text-3xl font-bold tracking-tight text-white">QuickClip</h1>
           <p className="mt-1 text-sm text-gray-400">
-            Paste a Twitch VOD URL to preview video, browse chat, detect highlights, and clip.
+            Paste a Twitch VOD URL to preview video, browse chat, and detect highlight moments.
           </p>
         </div>
 
@@ -427,35 +368,22 @@ export default function Home() {
           <label htmlFor="url" className="mb-1 block text-sm font-medium text-gray-300">
             Video URL
           </label>
-          <div className="flex gap-2">
-            <input
-              id="url"
-              type="text"
-              required
-              placeholder="https://www.twitch.tv/videos/123456789"
-              value={url}
-              onChange={(e) => {
-                setUrl(e.target.value);
-                if (analyzeStatus !== "idle") {
-                  setAnalyzeStatus("idle");
-                  setMoments([]);
-                }
-              }}
-              className="flex-1 rounded-lg border border-gray-700 bg-gray-800 px-4 py-2.5 text-sm text-white placeholder-gray-500 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-            />
-            <button
-              type="button"
-              onClick={() => setUrl("sample")}
-              className="whitespace-nowrap rounded-lg border border-gray-600 bg-gray-800 px-3 py-2.5 text-sm text-gray-300 transition hover:bg-gray-700 hover:text-white"
-            >
-              Try Sample
-            </button>
-          </div>
-          {url === "sample" && (
-            <p className="mt-1 text-xs text-indigo-400">
-              Using built-in 90s test video (1280x720 with audio).
-            </p>
-          )}
+          <input
+            id="url"
+            type="text"
+            required
+            placeholder="https://www.twitch.tv/videos/123456789"
+            value={url}
+            onChange={(e) => {
+              setUrl(e.target.value);
+              if (analyzeStatus !== "idle") {
+                setAnalyzeStatus("idle");
+                setMoments([]);
+                setSelectedMomentIdx(null);
+              }
+            }}
+            className="w-full rounded-lg border border-gray-700 bg-gray-800 px-4 py-2.5 text-sm text-white placeholder-gray-500 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+          />
         </div>
 
         {/* Video + Chat side-by-side (Twitch VODs only) */}
@@ -476,217 +404,109 @@ export default function Home() {
           </div>
         )}
 
-        {/* Controls + Highlights side-by-side */}
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          {/* Left: Clip controls */}
-          <div className="rounded-2xl bg-gray-900 p-6 shadow-xl">
-            <h2 className="mb-4 text-lg font-semibold text-white">Clip Settings</h2>
+        {/* Chat Analysis & Highlights */}
+        <div className="rounded-2xl bg-gray-900 p-6 shadow-xl">
+          <h2 className="mb-4 text-lg font-semibold text-white">Chat Analysis &amp; Highlights</h2>
 
-            <form onSubmit={handleSubmit} className="space-y-4">
-              {/* Detect Highlights button */}
-              {isTwitch && (
-                <button
-                  type="button"
-                  onClick={handleAnalyze}
-                  disabled={analyzeStatus === "analyzing"}
-                  className="w-full rounded-lg border border-purple-500 bg-purple-500/10 px-4 py-2.5 text-sm font-semibold text-purple-300 transition hover:bg-purple-500/20 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-gray-900 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {analyzeStatus === "analyzing"
-                    ? "Analyzing chat..."
-                    : analyzeStatus === "done"
-                      ? "Re-analyze Chat"
-                      : "Detect Highlights from Chat"}
-                </button>
-              )}
+          {/* Detect Highlights button */}
+          {isTwitch && (
+            <button
+              type="button"
+              onClick={handleAnalyze}
+              disabled={analyzeStatus === "analyzing"}
+              className="w-full rounded-lg border border-purple-500 bg-purple-500/10 px-4 py-2.5 text-sm font-semibold text-purple-300 transition hover:bg-purple-500/20 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-gray-900 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {analyzeStatus === "analyzing"
+                ? "Analyzing chat..."
+                : analyzeStatus === "done"
+                  ? "Re-analyze Chat"
+                  : "Detect Highlights from Chat"}
+            </button>
+          )}
 
-              {analyzeStatus === "analyzing" && (
-                <div className="flex items-center gap-2 text-sm text-purple-300">
-                  <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                  </svg>
-                  Scanning chat replay for reactions, emotes &amp; hype moments...
-                </div>
-              )}
-
-              {analyzeStatus === "error" && (
-                <p className="text-sm text-red-400">Analysis error: {analyzeError}</p>
-              )}
-
-              {/* Start time */}
-              <div>
-                <label htmlFor="start" className="mb-1 block text-sm font-medium text-gray-300">
-                  Start Time (HH:MM:SS)
-                </label>
-                <input
-                  id="start"
-                  type="text"
-                  required
-                  pattern="\d{1,2}:\d{2}:\d{2}"
-                  placeholder="00:00:00"
-                  value={start}
-                  onChange={(e) => setStart(e.target.value)}
-                  className="w-full rounded-lg border border-gray-700 bg-gray-800 px-4 py-2.5 text-sm text-white placeholder-gray-500 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                />
-                <p className="mt-1 text-xs text-gray-500">
-                  Clip will be 1 minute starting from this time ({start} &rarr; {computeEnd(start)})
-                </p>
-              </div>
-
-              {/* Set from player */}
-              {isTwitch && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    try {
-                      const t = Math.floor(playerRef.current?.getCurrentTime?.() ?? 0);
-                      setStart(formatTime(t));
-                    } catch {
-                      /* player not ready */
-                    }
-                  }}
-                  className="text-xs text-indigo-400 hover:text-indigo-300 transition"
-                >
-                  Set start from current player position
-                </button>
-              )}
-
-              {/* Format */}
-              <div>
-                <label htmlFor="format" className="mb-1 block text-sm font-medium text-gray-300">
-                  Format
-                </label>
-                <select
-                  id="format"
-                  value={format}
-                  onChange={(e) => setFormat(e.target.value)}
-                  className="w-full rounded-lg border border-gray-700 bg-gray-800 px-4 py-2.5 text-sm text-white focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                >
-                  <option value="landscape">16:9 Landscape</option>
-                  <option value="vertical">9:16 Vertical</option>
-                  <option value="square">1:1 Square</option>
-                </select>
-              </div>
-
-              {/* Submit */}
-              <button
-                type="submit"
-                disabled={status === "processing"}
-                className="w-full rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-gray-900 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {status === "processing" ? "Processing..." : "Generate Clip"}
-              </button>
-            </form>
-
-            {/* Status / Preview */}
-            <div className="mt-4">
-              {status === "processing" && (
-                <div className="flex items-center gap-2 text-sm text-yellow-400">
-                  <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                  </svg>
-                  Generating your clip...
-                </div>
-              )}
-              {status === "error" && (
-                <p className="text-sm text-red-400">Error: {errorMsg}</p>
-              )}
-              {status === "success" && clipUrl && (
-                <div className="space-y-3">
-                  <p className="text-sm text-green-400">Clip ready! Preview below:</p>
-                  <video
-                    src={clipUrl}
-                    controls
-                    className="w-full rounded-lg"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleDownload}
-                    className="w-full rounded-lg bg-green-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-green-500 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 focus:ring-offset-gray-900"
-                  >
-                    Download Clip
-                  </button>
-                </div>
-              )}
+          {analyzeStatus === "analyzing" && (
+            <div className="mt-4 flex items-center gap-2 text-sm text-purple-300">
+              <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+              Scanning chat replay for reactions, emotes &amp; hype moments...
             </div>
-          </div>
+          )}
 
-          {/* Right: Detected highlights */}
-          <div className="rounded-2xl bg-gray-900 p-6 shadow-xl">
-            <h2 className="mb-4 text-lg font-semibold text-white">Detected Highlights</h2>
+          {analyzeStatus === "error" && (
+            <p className="mt-4 text-sm text-red-400">Analysis error: {analyzeError}</p>
+          )}
 
-            {analyzeStatus === "idle" && isTwitch && (
-              <p className="text-sm text-gray-500">
-                Click &ldquo;Detect Highlights from Chat&rdquo; to find the best moments.
+          {analyzeStatus === "idle" && !isTwitch && (
+            <p className="text-sm text-gray-500">
+              Enter a Twitch VOD URL to detect highlights from chat replay.
+            </p>
+          )}
+
+          {analyzeStatus === "idle" && isTwitch && (
+            <p className="mt-4 text-sm text-gray-500">
+              Click &ldquo;Detect Highlights from Chat&rdquo; to scan chat replay and find the best moments.
+            </p>
+          )}
+
+          {analyzeStatus === "done" && moments.length > 0 && (
+            <div className="mt-4 space-y-3">
+              <p className="text-xs text-gray-400">
+                Found {moments.length} highlight{moments.length !== 1 ? "s" : ""} from{" "}
+                {totalMessages.toLocaleString()} chat messages. Click to jump to a moment:
               </p>
-            )}
-
-            {analyzeStatus === "idle" && !isTwitch && (
-              <p className="text-sm text-gray-500">
-                Enter a Twitch VOD URL to detect highlights from chat replay.
-              </p>
-            )}
-
-            {analyzeStatus === "done" && moments.length > 0 && (
-              <div className="space-y-2">
-                <p className="text-xs text-gray-400">
-                  Found {moments.length} highlight{moments.length !== 1 ? "s" : ""} from{" "}
-                  {totalMessages.toLocaleString()} chat messages. Click to select &amp; preview:
-                </p>
-                <div className="max-h-[400px] space-y-1.5 overflow-y-auto pr-1">
-                  {moments.map((m, i) => {
-                    const pct = Math.round((m.score / maxScore) * 100);
-                    const isSelected = start === formatTime(m.startSec);
-                    return (
-                      <button
-                        key={i}
-                        type="button"
-                        onClick={() => selectMoment(m)}
-                        className={`w-full rounded-lg border px-3 py-2 text-left transition ${
-                          isSelected
-                            ? "border-indigo-500 bg-indigo-500/20"
-                            : "border-gray-700 bg-gray-800 hover:border-gray-600"
-                        }`}
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm font-medium text-white">
-                            {formatTime(m.startSec)} &ndash; {formatTime(m.endSec)}
-                          </span>
-                          <span className="text-xs text-gray-400">
-                            {m.messageCount} msgs &middot; {m.messagesPerSec}/s
-                          </span>
-                        </div>
-                        <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-gray-700">
-                          <div
-                            className="h-full rounded-full bg-gradient-to-r from-purple-500 to-pink-500"
-                            style={{ width: `${pct}%` }}
-                          />
-                        </div>
-                        {m.sampleMessages.length > 0 && (
-                          <p className="mt-1 truncate text-xs text-gray-500">
-                            {m.sampleMessages.slice(0, 3).join(" · ")}
-                          </p>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                {moments.map((m, i) => {
+                  const pct = Math.round((m.score / maxScore) * 100);
+                  const isSelected = selectedMomentIdx === i;
+                  return (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => selectMoment(m, i)}
+                      className={`rounded-lg border px-3 py-2 text-left transition ${
+                        isSelected
+                          ? "border-indigo-500 bg-indigo-500/20"
+                          : "border-gray-700 bg-gray-800 hover:border-gray-600"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-white">
+                          {formatTime(m.startSec)} &ndash; {formatTime(m.endSec)}
+                        </span>
+                        <span className="text-xs text-gray-400">
+                          {m.messageCount} msgs &middot; {m.messagesPerSec}/s
+                        </span>
+                      </div>
+                      <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-gray-700">
+                        <div
+                          className="h-full rounded-full bg-gradient-to-r from-purple-500 to-pink-500"
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                      {m.sampleMessages.length > 0 && (
+                        <p className="mt-1 truncate text-xs text-gray-500">
+                          {m.sampleMessages.slice(0, 3).join(" · ")}
+                        </p>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
-            )}
+            </div>
+          )}
 
-            {analyzeStatus === "done" && moments.length === 0 && (
-              <p className="text-sm text-gray-400">
-                No clear highlights found. The chat may be too quiet or evenly distributed.
-              </p>
-            )}
-          </div>
+          {analyzeStatus === "done" && moments.length === 0 && (
+            <p className="mt-4 text-sm text-gray-400">
+              No clear highlights found. The chat may be too quiet or evenly distributed.
+            </p>
+          )}
         </div>
 
         {/* Footer */}
         <p className="mt-6 text-center text-xs text-gray-500">
-          Supports Twitch VOD URLs and direct .mp4/.m3u8 links.
-          For Twitch VODs, the video and chat are extracted for preview and auto-highlight detection.
+          Paste a Twitch VOD URL to preview the video, browse chat replay, and detect highlight moments from chat activity.
         </p>
       </div>
     </main>
