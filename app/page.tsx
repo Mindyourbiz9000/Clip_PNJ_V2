@@ -16,6 +16,8 @@ interface HypeMoment {
   categoryScores: Record<string, number>;
   burstScore: number;
   sampleMessages: string[];
+  aiDescription?: string;
+  aiScore?: number;
 }
 
 /** Visual config for each highlight tag */
@@ -488,6 +490,7 @@ export default function Home() {
   const [moments, setMoments] = useState<HypeMoment[]>([]);
   const [totalMessages, setTotalMessages] = useState(0);
   const [selectedMomentIdx, setSelectedMomentIdx] = useState<number | null>(null);
+  const [aiPowered, setAiPowered] = useState(false);
 
   // Highlight detection counter (persisted on server)
   const [analyzeCount, setAnalyzeCount] = useState(0);
@@ -532,6 +535,7 @@ export default function Home() {
       const data = await res.json();
       setMoments(data.moments ?? []);
       setTotalMessages(data.totalMessages ?? 0);
+      setAiPowered(data.aiPowered ?? false);
       setAnalyzeStatus("done");
     } catch (err) {
       setAnalyzeStatus("error");
@@ -680,7 +684,7 @@ export default function Home() {
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
               </svg>
-              Scanning chat for laughter, hype, shock, love, toxicity &amp; spam bursts...
+              Scanning chat for laughter, hype, shock, love, toxicity &amp; spam bursts... AI will rerank the best moments.
             </div>
           )}
 
@@ -702,10 +706,20 @@ export default function Home() {
 
           {analyzeStatus === "done" && moments.length > 0 && (
             <div className="mt-4 space-y-3">
-              <p className="text-xs text-gray-400">
-                Found {moments.length} highlight{moments.length !== 1 ? "s" : ""} from{" "}
-                {totalMessages.toLocaleString()} chat messages. Click to jump to a moment:
-              </p>
+              <div className="flex items-center gap-2">
+                <p className="text-xs text-gray-400">
+                  Found {moments.length} highlight{moments.length !== 1 ? "s" : ""} from{" "}
+                  {totalMessages.toLocaleString()} chat messages. Click to jump to a moment:
+                </p>
+                {aiPowered && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 border border-emerald-500/40 px-2 py-0.5 text-[10px] font-semibold text-emerald-300">
+                    <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 00-2.455 2.456z" />
+                    </svg>
+                    AI-ranked
+                  </span>
+                )}
+              </div>
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
                 {moments.map((m, i) => {
                   const pct = Math.round((m.score / maxScore) * 100);
@@ -750,6 +764,22 @@ export default function Home() {
                         <p className="mt-1 text-[10px] text-violet-400">
                           Burst detected &middot; {m.burstScore.toFixed(1)} intensity
                         </p>
+                      )}
+                      {m.aiDescription && (
+                        <div className="mt-1.5 flex items-start gap-1.5">
+                          <svg className="mt-0.5 h-3 w-3 shrink-0 text-emerald-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
+                          </svg>
+                          <p className="text-xs text-emerald-300/80">{m.aiDescription}</p>
+                        </div>
+                      )}
+                      {m.aiScore != null && (
+                        <div className="mt-1 flex items-center gap-1">
+                          <span className="text-[10px] text-gray-500">AI score:</span>
+                          <span className={`text-[10px] font-bold ${m.aiScore >= 7 ? "text-emerald-400" : m.aiScore >= 4 ? "text-yellow-400" : "text-gray-500"}`}>
+                            {m.aiScore}/10
+                          </span>
+                        </div>
                       )}
                       {m.sampleMessages.length > 0 && (
                         <p className="mt-1 truncate text-xs text-gray-500">

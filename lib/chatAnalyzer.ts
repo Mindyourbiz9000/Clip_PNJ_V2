@@ -502,6 +502,10 @@ export interface HypeMoment {
   burstScore: number;
   /** Sample reaction messages */
   sampleMessages: string[];
+  /** AI-generated description of what's happening (if AI reranking was used) */
+  aiDescription?: string;
+  /** AI entertainment score 0-10 (if AI reranking was used) */
+  aiScore?: number;
 }
 
 /**

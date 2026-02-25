@@ -9,6 +9,7 @@ services:
       - MAX_CONCURRENT=${MAX_CONCURRENT:-1}
       - TMP_DIR=/tmp
       - PORT=3000
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
     tmpfs:
       - /tmp:size=512M
     restart: unless-stopped

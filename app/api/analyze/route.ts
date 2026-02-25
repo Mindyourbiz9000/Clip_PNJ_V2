@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { extractVideoId, iterateChat } from "@/lib/twitchChat";
 import { BucketAccumulator, findHypeMoments } from "@/lib/chatAnalyzer";
 import { isTwitchUrl } from "@/lib/resolveUrl";
+import { rerankHighlights } from "@/lib/aiReranker";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -79,12 +80,17 @@ export async function POST(req: NextRequest) {
     return jsonError("No chat messages found for this video", 404);
   }
 
-  const moments = findHypeMoments(buckets, {
+  // Get expanded candidate set for AI reranking (25 candidates instead of 10)
+  const hasAIKey = !!process.env.ANTHROPIC_API_KEY;
+  const candidates = findHypeMoments(buckets, {
     windowSec: 30,
     clipDurationSec: 30,
     minGapSec: 60,
-    topN: 10,
+    topN: hasAIKey ? 25 : 10,
   });
+
+  // AI reranking (falls back to rule-based if no API key or on error)
+  const { moments, aiPowered } = await rerankHighlights(videoId, candidates, 10);
 
   // Compute some stats for the response
   let totalMessages = 0;
@@ -98,6 +104,7 @@ export async function POST(req: NextRequest) {
       totalMessages,
       bucketsAnalyzed: buckets.size,
       moments,
+      aiPowered,
     }),
     {
       status: 200,
