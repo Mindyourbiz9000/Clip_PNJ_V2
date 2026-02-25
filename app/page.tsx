@@ -1005,6 +1005,9 @@ export default function Home() {
                         // Player might not support seek yet
                       }
                     }
+                    requestAnimationFrame(() => {
+                      window.scrollTo({ top: 0, behavior: "smooth" });
+                    });
                   }}
                 />
               </div>
