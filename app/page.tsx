@@ -702,10 +702,30 @@ export default function Home() {
 
           {analyzeStatus === "done" && moments.length > 0 && (
             <div className="mt-4 space-y-3">
-              <p className="text-xs text-gray-400">
-                Found {moments.length} highlight{moments.length !== 1 ? "s" : ""} from{" "}
-                {totalMessages.toLocaleString()} chat messages. Click to jump to a moment:
-              </p>
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-gray-400">
+                  Found <span className="font-semibold text-purple-300">{moments.length}</span> highlight{moments.length !== 1 ? "s" : ""} from{" "}
+                  {totalMessages.toLocaleString()} chat messages. Click to jump to a moment:
+                </p>
+                {/* Tag distribution summary */}
+                <div className="flex items-center gap-1.5">
+                  {(Object.keys(TAG_CONFIG) as HighlightTag[]).map((tag) => {
+                    const count = moments.filter((m) => m.tag === tag).length;
+                    if (count === 0) return null;
+                    const cfg = TAG_CONFIG[tag];
+                    return (
+                      <span
+                        key={tag}
+                        className={`inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-medium ${cfg.color} ${cfg.bg} ${cfg.border} border`}
+                        title={`${count} ${cfg.label} highlight${count !== 1 ? "s" : ""}`}
+                      >
+                        <span>{cfg.emoji}</span>
+                        <span>{count}</span>
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
                 {moments.map((m, i) => {
                   const pct = Math.round((m.score / maxScore) * 100);
@@ -724,6 +744,7 @@ export default function Home() {
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-mono text-gray-500">#{i + 1}</span>
                           <span className="text-sm font-medium text-white">
                             {formatTime(m.startSec)} &ndash; {formatTime(m.endSec)}
                           </span>

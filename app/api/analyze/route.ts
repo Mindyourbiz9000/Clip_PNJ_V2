@@ -82,8 +82,9 @@ export async function POST(req: NextRequest) {
   const moments = findHypeMoments(buckets, {
     windowSec: 30,
     clipDurationSec: 30,
-    minGapSec: 60,
-    topN: 10,
+    minGapSec: 45,
+    thresholdFactor: 1.0,
+    maxHighlights: 0, // No limit — return all significant highlights
   });
 
   // Compute some stats for the response
