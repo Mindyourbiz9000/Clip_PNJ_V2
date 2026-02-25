@@ -4,7 +4,7 @@
  * and categorizing each highlight by its dominant type.
  */
 
-import type { ChatMessage, ChatFragment } from "./twitchChat";
+import type { ChatMessage } from "./twitchChat";
 
 /* ------------------------------------------------------------------ */
 /*  Highlight categories                                               */
@@ -66,7 +66,7 @@ const CATEGORY_PATTERNS: Record<Exclude<HighlightTag, "spam">, CategoryPatterns>
     ],
     emoteNames: new Set([
       "LUL", "LULW", "OMEGALUL", "KEKW", "ICANT", "pepeLaugh",
-      "EleGiggle", "4Head", "LUL_TK", "KEKHeim", "LULW",
+      "EleGiggle", "4Head", "LUL_TK", "KEKHeim",
       "KEKLEO", "forsenLUL",
     ]),
   },
@@ -87,7 +87,6 @@ const CATEGORY_PATTERNS: Record<Exclude<HighlightTag, "spam">, CategoryPatterns>
       /\bgoat\b/i,
       /\bmassi[fv]e?\b/i,
       /\bmonster\b/i,
-      /\binsane\b/i,
       /\bcheat(s|ing|er)?\b/i,
       /\bbest\b/i,
       /\bunreal\b/i,
@@ -126,8 +125,7 @@ const CATEGORY_PATTERNS: Record<Exclude<HighlightTag, "spam">, CategoryPatterns>
     ],
     emoteNames: new Set([
       "monkaS", "monkaW", "monkaEyes", "monkaGIGA", "WutFace", "D:",
-      "Jebaited", "NotLikeThis", "KEKW", "widepeepoSad",
-      "monkaHmm", "OMEGALUL",
+      "Jebaited", "NotLikeThis", "widepeepoSad", "monkaHmm",
     ]),
   },
 
@@ -140,7 +138,6 @@ const CATEGORY_PATTERNS: Record<Exclude<HighlightTag, "spam">, CategoryPatterns>
       /\badorable\b/i,
       /\bwholesome\b/i,
       /\baww+\b/i,
-      /\bgg\s*wp\b/i,
       /\bmerci\b/i,
       /\bthank\s*(you|u)\b/i,
       /\brespect\b/i,
@@ -156,7 +153,7 @@ const CATEGORY_PATTERNS: Record<Exclude<HighlightTag, "spam">, CategoryPatterns>
 
   toxic: {
     keywords: [
-      // Insults (FR)
+      // Insults (FR + EN, deduplicated)
       /\bfdp\b/i,
       /\bntm\b/i,
       /\btg\b/i,
@@ -165,22 +162,16 @@ const CATEGORY_PATTERNS: Record<Exclude<HighlightTag, "spam">, CategoryPatterns>
       /\bbot\b/i,
       /\btrash\b/i,
       /\bdeg(eu|ueulasse)\b/i,
-      /\bcheat(er|s|ing)?\b/i,
-      // Insults (EN)
-      /\btrash\b/i,
       /\bgarbage\b/i,
-      /\bnoob\b/i,
       /\btroll(ing|ed|er)?\b/i,
       /\btoxic\b/i,
       /\brage\s*(quit)?\b/i,
       /\bsalt(y)?\b/i,
       /\bcringe\b/i,
-      /\bl\b/i,  // single L = loss
       // Bans / Moderation events
       /\bban(n?ed|s)?\b/i,
       /\btimeout\b/i,
       /\bmuted?\b/i,
-      /\bmod(s)?\b/i,
       /\breport(ed)?\b/i,
       /\bkick(ed)?\b/i,
       /\brip\b/i,
@@ -190,11 +181,25 @@ const CATEGORY_PATTERNS: Record<Exclude<HighlightTag, "spam">, CategoryPatterns>
     ],
     emoteNames: new Set([
       "Sadge", "PepeHands", "FeelsBadMan", "ResidentSleeper",
-      "NotLikeThis", "BabyRage", "SwiftRage", "DansGame",
+      "BabyRage", "SwiftRage", "DansGame",
       "FailFish", "SMOrc", "haHAA", "WeirdChamp", "Pepega",
     ]),
   },
 };
+
+/* ------------------------------------------------------------------ */
+/*  Combined emote lookup for text-based recognition                   */
+/* ------------------------------------------------------------------ */
+
+/** Map every known emote name to its primary category (for text-only matching). */
+const ALL_EMOTE_NAMES = new Map<string, Exclude<HighlightTag, "spam">>();
+for (const cat of Object.keys(CATEGORY_PATTERNS) as Array<keyof typeof CATEGORY_PATTERNS>) {
+  for (const emote of CATEGORY_PATTERNS[cat].emoteNames) {
+    if (!ALL_EMOTE_NAMES.has(emote)) {
+      ALL_EMOTE_NAMES.set(emote, cat);
+    }
+  }
+}
 
 /* ------------------------------------------------------------------ */
 /*  Scoring                                                            */
@@ -222,7 +227,10 @@ export function scoreMessage(msg: ChatMessage): MessageScore {
 
   const text = msg.text;
 
-  // --- Emote scoring per fragment ---
+  // Track emotes already scored via fragments to avoid double-counting
+  const scoredEmotes = new Set<string>();
+
+  // --- Emote scoring per fragment (actual Twitch emotes) ---
   for (const frag of msg.fragments) {
     if (!frag.emote) continue;
     const emoteName = frag.text.trim();
@@ -232,8 +240,19 @@ export function scoreMessage(msg: ChatMessage): MessageScore {
         emoteCount++;
         reactionScore += 2;
         categories[cat] += 2;
+        scoredEmotes.add(emoteName);
         break; // one emote = one category
       }
+    }
+  }
+
+  // --- Text-based emote recognition (non-subscribers typing emote names) ---
+  for (const [emoteName, cat] of ALL_EMOTE_NAMES) {
+    if (scoredEmotes.has(emoteName)) continue; // already scored as real emote
+    if (text.includes(emoteName)) {
+      reactionScore += 1; // reduced score for text-only mention
+      categories[cat] += 1;
+      break; // max 1 text-emote match per message
     }
   }
 
@@ -278,6 +297,8 @@ export interface ChatBucket {
   messageTimestamps: number[];
   /** A few sample reaction messages to display as context */
   sampleMessages: string[];
+  /** Larger sample of ALL messages (scored or not) for spam detection */
+  spamSampleMessages: string[];
 }
 
 export class BucketAccumulator {
@@ -301,6 +322,7 @@ export class BucketAccumulator {
         categoryScores: { fun: 0, hype: 0, shock: 0, love: 0, toxic: 0 },
         messageTimestamps: [],
         sampleMessages: [],
+        spamSampleMessages: [],
       };
       this.buckets.set(key, bucket);
     }
@@ -321,8 +343,12 @@ export class BucketAccumulator {
 
     // Keep a few sample reaction messages for context
     if (reactionScore > 0 && bucket.sampleMessages.length < 5) {
-      const sample = msg.text.slice(0, 80);
-      bucket.sampleMessages.push(sample);
+      bucket.sampleMessages.push(msg.text.slice(0, 80));
+    }
+
+    // Keep a larger sample of ALL messages for spam detection
+    if (bucket.spamSampleMessages.length < 30) {
+      bucket.spamSampleMessages.push(msg.text.slice(0, 80));
     }
   }
 
@@ -367,12 +393,12 @@ function computeBurstScore(bucket: ChatBucket): number {
 }
 
 /**
- * Detects copy-paste spam: if many messages in the bucket share identical text.
+ * Detects copy-paste spam using the larger spamSampleMessages pool.
  * Returns a spam score (0 = no spam).
  */
 function computeSpamScore(bucket: ChatBucket): number {
-  const msgs = bucket.sampleMessages;
-  if (msgs.length < 3) return 0;
+  const msgs = bucket.spamSampleMessages;
+  if (msgs.length < 5) return 0;
 
   // Count duplicates across sample messages
   const freq = new Map<string, number>();
@@ -440,6 +466,20 @@ function resolveDominantTag(
 }
 
 /* ------------------------------------------------------------------ */
+/*  Normalization helpers                                               */
+/* ------------------------------------------------------------------ */
+
+/** Compute the median of a numeric array. */
+function median(values: number[]): number {
+  if (values.length === 0) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 !== 0
+    ? sorted[mid]
+    : (sorted[mid - 1] + sorted[mid]) / 2;
+}
+
+/* ------------------------------------------------------------------ */
 /*  Peak detection                                                     */
 /* ------------------------------------------------------------------ */
 
@@ -490,8 +530,30 @@ export function findHypeMoments(
   // Sort bucket keys
   const keys = Array.from(buckets.keys()).sort((a, b) => a - b);
 
-  // Compute composite score for each bucket
-  // Score = messageCount + reactionScore * 3 + emoteCount * 2 + burstBonus
+  // --- Chat speed normalization ---
+  // Normalize messageCount relative to the VOD's median bucket activity.
+  // This makes a 3x spike equally significant whether the channel has 500 or 50k viewers.
+  const messageCounts = keys.map((k) => buckets.get(k)!.messageCount);
+  const medianCount = median(messageCounts);
+
+  // --- Velocity detection ---
+  // Compute a rolling baseline (~5 min lookback) for each bucket,
+  // then measure how much the current bucket spikes above baseline.
+  const baselineWindow = 10; // 10 buckets = 5 minutes at 30s/bucket
+  const bucketBaselines = new Map<number, number>();
+  for (let i = 0; i < keys.length; i++) {
+    const start = Math.max(0, i - baselineWindow);
+    const end = i; // exclude current bucket from its own baseline
+    let sum = 0;
+    let count = 0;
+    for (let j = start; j < end; j++) {
+      sum += buckets.get(keys[j])!.messageCount;
+      count++;
+    }
+    bucketBaselines.set(keys[i], count > 0 ? sum / count : 0);
+  }
+
+  // --- Score each bucket with normalization, velocity, and burst ---
   const scored: Array<{
     key: number;
     score: number;
@@ -502,13 +564,43 @@ export function findHypeMoments(
     const b = buckets.get(key)!;
     const burst = computeBurstScore(b);
     const spam = computeSpamScore(b);
+
+    // Normalized message count (relative to VOD median)
+    const normalizedCount = b.messageCount / Math.max(medianCount, 1);
+
+    // Velocity: how much this bucket spikes above its local baseline
+    const baseline = bucketBaselines.get(key) ?? 0;
+    const velocity = baseline > 0
+      ? (b.messageCount - baseline) / baseline
+      : (b.messageCount > 5 ? 2 : 0); // small bonus for early activity
+
+    // Composite score:
+    //  normalizedCount*2 : volume relative to VOD average
+    //  reactionScore*3   : keyword + emote matches (strongest quality signal)
+    //  burst*1.0         : message flooding intensity
+    //  velocity*5        : sudden activity spike (key for highlight detection)
     const score =
-      b.messageCount +
+      normalizedCount * 2 +
       b.reactionScore * 3 +
-      b.emoteCount * 2 +
-      burst * 0.5; // Burst adds a bonus
+      burst * 1.0 +
+      Math.max(0, velocity) * 5;
+
     return { key, score, bucket: b, burstScore: burst, spamScore: spam };
   });
+
+  // --- Multi-bucket sliding window ---
+  // Boost each bucket by 30% of its best adjacent neighbor's score.
+  // This catches highlights that straddle 30-second bucket boundaries.
+  const scoreMap = new Map<number, number>();
+  for (const entry of scored) {
+    scoreMap.set(entry.key, entry.score);
+  }
+  for (const entry of scored) {
+    const prevScore = scoreMap.get(entry.key - windowSec) ?? 0;
+    const nextScore = scoreMap.get(entry.key + windowSec) ?? 0;
+    const bestNeighbor = Math.max(prevScore, nextScore);
+    entry.score += bestNeighbor * 0.3;
+  }
 
   // Sort by score descending
   scored.sort((a, b) => b.score - a.score);
