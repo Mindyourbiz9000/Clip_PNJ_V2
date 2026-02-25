@@ -13,21 +13,19 @@ import type { ChatMessage, ChatFragment } from "./twitchChat";
 /**
  * Each highlight is tagged with its dominant category:
  *  - fun       : laughter, jokes, comedic reactions
- *  - hype      : poggers, let's go, insane plays
- *  - shock     : wtf, omg, surprise, disbelief
- *  - love      : hearts, wholesome, love emotes
- *  - toxic     : insults, bans, timeouts, drama
- *  - spam      : chat flooding / copy-paste spam bursts
+ *  - hype      : poggers, let's go, insane plays, general excitement
+ *  - ban       : bans, timeouts, moderation drama
+ *  - sub       : subscriptions, gifted subs, sub trains
+ *  - donation  : bits, cheers, donations, tips
  */
-export type HighlightTag = "fun" | "hype" | "shock" | "love" | "toxic" | "spam";
+export type HighlightTag = "fun" | "hype" | "ban" | "sub" | "donation";
 
 export const HIGHLIGHT_TAG_META: Record<HighlightTag, { label: string; emoji: string }> = {
-  fun:   { label: "Fun",   emoji: "😂" },
-  hype:  { label: "Hype",  emoji: "🔥" },
-  shock: { label: "Shock", emoji: "😱" },
-  love:  { label: "Love",  emoji: "❤️" },
-  toxic: { label: "Toxic", emoji: "☠️" },
-  spam:  { label: "Spam",  emoji: "🌊" },
+  fun:      { label: "Fun",      emoji: "😂" },
+  hype:     { label: "Hype",     emoji: "🔥" },
+  ban:      { label: "Ban",      emoji: "🔨" },
+  sub:      { label: "Sub",      emoji: "⭐" },
+  donation: { label: "Donation", emoji: "💰" },
 };
 
 /* ------------------------------------------------------------------ */
@@ -39,7 +37,7 @@ interface CategoryPatterns {
   emoteNames: Set<string>;
 }
 
-const CATEGORY_PATTERNS: Record<Exclude<HighlightTag, "spam">, CategoryPatterns> = {
+const CATEGORY_PATTERNS: Record<HighlightTag, CategoryPatterns> = {
   fun: {
     keywords: [
       // French laughter
@@ -66,7 +64,7 @@ const CATEGORY_PATTERNS: Record<Exclude<HighlightTag, "spam">, CategoryPatterns>
     ],
     emoteNames: new Set([
       "LUL", "LULW", "OMEGALUL", "KEKW", "ICANT", "pepeLaugh",
-      "EleGiggle", "4Head", "LUL_TK", "KEKHeim", "LULW",
+      "EleGiggle", "4Head", "LUL_TK", "KEKHeim",
       "KEKLEO", "forsenLUL",
     ]),
   },
@@ -87,8 +85,6 @@ const CATEGORY_PATTERNS: Record<Exclude<HighlightTag, "spam">, CategoryPatterns>
       /\bgoat\b/i,
       /\bmassi[fv]e?\b/i,
       /\bmonster\b/i,
-      /\binsane\b/i,
-      /\bcheat(s|ing|er)?\b/i,
       /\bbest\b/i,
       /\bunreal\b/i,
       /\bwow\b/i,
@@ -96,102 +92,120 @@ const CATEGORY_PATTERNS: Record<Exclude<HighlightTag, "spam">, CategoryPatterns>
       /\bez\s*(clap|game)?\b/i,
       /\bW\b/,
       /!{3,}/,  // "!!!" excitement
-      /🔥|💯|🎉|🏆|👑/,
+      // Shock / surprise (merged into hype)
+      /\bomg\b/i,
+      /\bwtf\b/i,
+      /\bno\s*way\b/i,
+      /\bholy\s*(shit|cow|moly|crap|f+)?\b/i,
+      /\bbruh\b/i,
+      /\bjsp\b/i,
+      /\boh\s*(my\s*)?(god|lord|no)\b/i,
+      /🔥|💯|🎉|🏆|👑|😱|😮|💀/,
     ],
     emoteNames: new Set([
       "PogChamp", "Pog", "PogU", "PogSlide", "POGGIES", "POGCRAZY",
       "catJAM", "Clap", "EZ", "COPIUM", "HOPIUM",
       "Kreygasm", "HYPERS", "gachiGASM", "PogBones",
+      "monkaS", "monkaW", "WutFace", "Jebaited", "NotLikeThis",
     ]),
   },
 
-  shock: {
+  ban: {
     keywords: [
-      /\bomg\b/i,
-      /\bwtf\b/i,
-      /\bwhat\b/i,
-      /\bno\s*way\b/i,
-      /\bwai?t\s*what\b/i,
-      /\bholy\s*(shit|cow|moly|crap|f+)?\b/i,
-      /\bbruh\b/i,
-      /\bwhat\s*the\b/i,
-      /\bexcuse\s*me\b/i,
-      /\bjsp\b/i,
-      /\boh\s*(my\s*)?(god|lord|no)\b/i,
-      /\bdead\b/i,
-      /\bje\s*suis\s*mort\b/i,
-      /\bje\s*suis\s*choque\b/i,
-      /\?{3,}/, // "???" confusion / shock
-      /😱|😮|😲|😧|💀|😭|😳/,
+      // Ban / moderation events
+      /\bban(n?ed|s)?\b/i,
+      /\btimeout\b/i,
+      /\bmuted?\b/i,
+      /\bkick(ed)?\b/i,
+      /\breport(ed)?\b/i,
+      /\bmod(s)?\b/i,
+      /\bdeserved\b/i,
+      /\bunban\b/i,
+      // "F" and "rip" reactions to bans
+      /\bF\b/,
+      /\brip\b/i,
+      /\bL\b/,
+      // Toxic / drama reactions that accompany bans
+      /\btroll(ing|ed|er)?\b/i,
+      /\btoxic\b/i,
+      /\brage\s*(quit)?\b/i,
+      /\bcringe\b/i,
+      /\btrash\b/i,
+      /\bnoob\b/i,
+      /🤡|🖕|😡|🤬|💀/,
     ],
     emoteNames: new Set([
-      "monkaS", "monkaW", "monkaEyes", "monkaGIGA", "WutFace", "D:",
-      "Jebaited", "NotLikeThis", "KEKW", "widepeepoSad",
-      "monkaHmm", "OMEGALUL",
+      "Sadge", "PepeHands", "FeelsBadMan", "BabyRage", "SwiftRage",
+      "DansGame", "FailFish", "SMOrc", "haHAA", "WeirdChamp", "Pepega",
+      "KEKW", "OMEGALUL", "crabrave", "crabPls",
     ]),
   },
 
-  love: {
+  sub: {
     keywords: [
-      /\blove\b/i,
-      /\bj'?aime\b/i,
-      /\bje\s*t'?aime\b/i,
-      /\bcute\b/i,
-      /\badorable\b/i,
-      /\bwholesome\b/i,
-      /\baww+\b/i,
-      /\bgg\s*wp\b/i,
+      // English sub patterns
+      /\bsub(scrib(e|ed|ing))?\b/i,
+      /\bresub(bed)?\b/i,
+      /\bgift(ed)?\s*(a\s*)?sub\b/i,
+      /\bsub\s*train\b/i,
+      /\bsub\s*hype\b/i,
+      /\btier\s*[123]\b/i,
+      /\bprime\s*(sub|gaming)?\b/i,
+      /\bwelcome\b/i,
+      /\bnew\s*sub\b/i,
+      /\bgifted\b/i,
+      // French sub patterns
+      /\babonn[eé](ment)?\b/i,
+      /\bbienvenu(e)?\b/i,
+      // Sub milestone reactions
+      /\bmonths?\b/i,
+      /\bstreak\b/i,
+      /\banniversary\b/i,
+      // Common sub celebration reactions
       /\bmerci\b/i,
       /\bthank\s*(you|u)\b/i,
-      /\brespect\b/i,
-      /\bproud\b/i,
-      /❤️?|🥰|😍|🥺|💕|💗|💖|💛|😘|❤/,
+      /\blove\b/i,
+      /\bwelcome\b/i,
+      /❤️?|🥰|😍|💕|💗|💖|⭐|🌟|❤/,
     ],
     emoteNames: new Set([
       "peepoLove", "peepoHappy", "<3", "FeelsGoodMan", "widepeepoHappy",
       "peepoClap", "peepoBlush", "catHug", "BibleThump",
-      "HeyGuys", "VirtualHug", "TwitchUnity",
+      "HeyGuys", "VirtualHug", "TwitchUnity", "PogChamp",
+      "HypeCheer", "FallHalp", "SeemsGood",
     ]),
   },
 
-  toxic: {
+  donation: {
     keywords: [
-      // Insults (FR)
-      /\bfdp\b/i,
-      /\bntm\b/i,
-      /\btg\b/i,
-      /\bnul(le)?\b/i,
-      /\bnoob\b/i,
-      /\bbot\b/i,
-      /\btrash\b/i,
-      /\bdeg(eu|ueulasse)\b/i,
-      /\bcheat(er|s|ing)?\b/i,
-      // Insults (EN)
-      /\btrash\b/i,
-      /\bgarbage\b/i,
-      /\bnoob\b/i,
-      /\btroll(ing|ed|er)?\b/i,
-      /\btoxic\b/i,
-      /\brage\s*(quit)?\b/i,
-      /\bsalt(y)?\b/i,
-      /\bcringe\b/i,
-      /\bl\b/i,  // single L = loss
-      // Bans / Moderation events
-      /\bban(n?ed|s)?\b/i,
-      /\btimeout\b/i,
-      /\bmuted?\b/i,
-      /\bmod(s)?\b/i,
-      /\breport(ed)?\b/i,
-      /\bkick(ed)?\b/i,
-      /\brip\b/i,
-      /\bF\b/,  // press F
-      /\bL\b/,  // L = loss
-      /🤡|💩|🖕|🤮|😡|🤬/,
+      // Bits / cheers
+      /\bcheer\d*/i,
+      /\bbits?\b/i,
+      /\bcheer\b/i,
+      // Donation patterns
+      /\bdon(o|at(e|ion|ed))?\b/i,
+      /\btip(ped|s)?\b/i,
+      /\b\d+\s*\$\b/,
+      /\$\s*\d+/,
+      /\b\d+\s*euros?\b/i,
+      /\b\d+\s*€/,
+      // French donation patterns
+      /\bmerci\s*(pour|for)\b/i,
+      /\bgénéreu[sx]\b/i,
+      /\bgénérosité\b/i,
+      // Superchat / support
+      /\bsuperchat\b/i,
+      /\bsupport\b/i,
+      /\bcontribut(e|ion)\b/i,
+      // Celebration reactions to donations
+      /\bgénial\b/i,
+      /\bwow\b/i,
+      /💰|💵|💲|💎|🎁|💸|🤑/,
     ],
     emoteNames: new Set([
-      "Sadge", "PepeHands", "FeelsBadMan", "ResidentSleeper",
-      "NotLikeThis", "BabyRage", "SwiftRage", "DansGame",
-      "FailFish", "SMOrc", "haHAA", "WeirdChamp", "Pepega",
+      "PogChamp", "Pog", "HYPERS", "peepoHappy", "widepeepoHappy",
+      "Clap", "catJAM", "peepoClap", "EZ",
+      "HypeCheer", "BibleThump", "TwitchUnity",
     ]),
   },
 };
@@ -203,9 +217,9 @@ const CATEGORY_PATTERNS: Record<Exclude<HighlightTag, "spam">, CategoryPatterns>
 export interface CategoryScores {
   fun: number;
   hype: number;
-  shock: number;
-  love: number;
-  toxic: number;
+  ban: number;
+  sub: number;
+  donation: number;
 }
 
 export interface MessageScore {
@@ -218,7 +232,7 @@ export interface MessageScore {
 export function scoreMessage(msg: ChatMessage): MessageScore {
   let reactionScore = 0;
   let emoteCount = 0;
-  const categories: CategoryScores = { fun: 0, hype: 0, shock: 0, love: 0, toxic: 0 };
+  const categories: CategoryScores = { fun: 0, hype: 0, ban: 0, sub: 0, donation: 0 };
 
   const text = msg.text;
 
@@ -298,7 +312,7 @@ export class BucketAccumulator {
         messageCount: 0,
         reactionScore: 0,
         emoteCount: 0,
-        categoryScores: { fun: 0, hype: 0, shock: 0, love: 0, toxic: 0 },
+        categoryScores: { fun: 0, hype: 0, ban: 0, sub: 0, donation: 0 },
         messageTimestamps: [],
         sampleMessages: [],
       };
@@ -315,9 +329,9 @@ export class BucketAccumulator {
     // Accumulate per-category scores
     bucket.categoryScores.fun += categories.fun;
     bucket.categoryScores.hype += categories.hype;
-    bucket.categoryScores.shock += categories.shock;
-    bucket.categoryScores.love += categories.love;
-    bucket.categoryScores.toxic += categories.toxic;
+    bucket.categoryScores.ban += categories.ban;
+    bucket.categoryScores.sub += categories.sub;
+    bucket.categoryScores.donation += categories.donation;
 
     // Keep sample reaction messages for context (increased from 5 to 10)
     if (reactionScore > 0 && bucket.sampleMessages.length < 10) {
@@ -401,35 +415,22 @@ function computeSpamScore(bucket: ChatBucket): number {
 
 /**
  * Determines the dominant highlight tag for a bucket based on
- * category scores, burst intensity, and spam detection.
+ * category scores and burst intensity.
  */
 function resolveDominantTag(
   bucket: ChatBucket,
-  burstScore: number,
-  spamScore: number
+  _burstScore: number,
+  _spamScore: number
 ): HighlightTag {
   const cat = bucket.categoryScores;
 
-  // If spam score is dominant, tag as spam
-  if (spamScore > 0 && spamScore >= Math.max(cat.fun, cat.hype, cat.shock, cat.love, cat.toxic)) {
-    return "spam";
-  }
-
-  // If burst is very high but no dominant category, it's spam-like flooding
-  if (
-    burstScore > 20 &&
-    Math.max(cat.fun, cat.hype, cat.shock, cat.love, cat.toxic) < burstScore * 0.3
-  ) {
-    return "spam";
-  }
-
   // Find highest category
-  const entries: Array<[Exclude<HighlightTag, "spam">, number]> = [
+  const entries: Array<[HighlightTag, number]> = [
     ["fun", cat.fun],
     ["hype", cat.hype],
-    ["shock", cat.shock],
-    ["love", cat.love],
-    ["toxic", cat.toxic],
+    ["ban", cat.ban],
+    ["sub", cat.sub],
+    ["donation", cat.donation],
   ];
   entries.sort((a, b) => b[1] - a[1]);
 
@@ -495,7 +496,7 @@ function mergeBuckets(bucketList: ChatBucket[]): ChatBucket {
     messageCount: 0,
     reactionScore: 0,
     emoteCount: 0,
-    categoryScores: { fun: 0, hype: 0, shock: 0, love: 0, toxic: 0 },
+    categoryScores: { fun: 0, hype: 0, ban: 0, sub: 0, donation: 0 },
     messageTimestamps: [],
     sampleMessages: [],
   };
@@ -506,9 +507,9 @@ function mergeBuckets(bucketList: ChatBucket[]): ChatBucket {
     merged.emoteCount += b.emoteCount;
     merged.categoryScores.fun += b.categoryScores.fun;
     merged.categoryScores.hype += b.categoryScores.hype;
-    merged.categoryScores.shock += b.categoryScores.shock;
-    merged.categoryScores.love += b.categoryScores.love;
-    merged.categoryScores.toxic += b.categoryScores.toxic;
+    merged.categoryScores.ban += b.categoryScores.ban;
+    merged.categoryScores.sub += b.categoryScores.sub;
+    merged.categoryScores.donation += b.categoryScores.donation;
     merged.messageTimestamps.push(...b.messageTimestamps);
     // Collect sample messages from all buckets (up to 10)
     for (const s of b.sampleMessages) {

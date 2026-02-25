@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 
 type AnalyzeStatus = "idle" | "analyzing" | "done" | "error";
 
-type HighlightTag = "fun" | "hype" | "shock" | "love" | "toxic" | "spam";
+type HighlightTag = "fun" | "hype" | "ban" | "sub" | "donation";
 
 interface HypeMoment {
   startSec: number;
@@ -20,12 +20,11 @@ interface HypeMoment {
 
 /** Visual config for each highlight tag */
 const TAG_CONFIG: Record<HighlightTag, { label: string; emoji: string; color: string; bg: string; border: string; gradient: string }> = {
-  fun:   { label: "Fun",   emoji: "😂", color: "text-yellow-300", bg: "bg-yellow-500/15", border: "border-yellow-500/40", gradient: "from-yellow-500 to-amber-500" },
-  hype:  { label: "Hype",  emoji: "🔥", color: "text-orange-300", bg: "bg-orange-500/15", border: "border-orange-500/40", gradient: "from-orange-500 to-red-500" },
-  shock: { label: "Shock", emoji: "😱", color: "text-cyan-300",   bg: "bg-cyan-500/15",   border: "border-cyan-500/40",   gradient: "from-cyan-500 to-blue-500" },
-  love:  { label: "Love",  emoji: "❤️", color: "text-pink-300",   bg: "bg-pink-500/15",   border: "border-pink-500/40",   gradient: "from-pink-500 to-rose-500" },
-  toxic: { label: "Toxic", emoji: "☠️", color: "text-red-300",    bg: "bg-red-500/15",    border: "border-red-500/40",    gradient: "from-red-500 to-rose-600" },
-  spam:  { label: "Spam",  emoji: "🌊", color: "text-violet-300", bg: "bg-violet-500/15", border: "border-violet-500/40", gradient: "from-violet-500 to-purple-500" },
+  fun:      { label: "Fun",      emoji: "😂", color: "text-yellow-300",  bg: "bg-yellow-500/15",  border: "border-yellow-500/40",  gradient: "from-yellow-500 to-amber-500" },
+  hype:     { label: "Hype",     emoji: "🔥", color: "text-orange-300",  bg: "bg-orange-500/15",  border: "border-orange-500/40",  gradient: "from-orange-500 to-red-500" },
+  ban:      { label: "Ban",      emoji: "🔨", color: "text-red-300",     bg: "bg-red-500/15",     border: "border-red-500/40",     gradient: "from-red-500 to-rose-600" },
+  sub:      { label: "Sub",      emoji: "⭐", color: "text-purple-300",  bg: "bg-purple-500/15",  border: "border-purple-500/40",  gradient: "from-purple-500 to-violet-500" },
+  donation: { label: "Donation", emoji: "💰", color: "text-emerald-300", bg: "bg-emerald-500/15", border: "border-emerald-500/40", gradient: "from-emerald-500 to-green-500" },
 };
 
 interface ChatMsg {
@@ -680,7 +679,7 @@ export default function Home() {
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
               </svg>
-              Scanning chat for laughter, hype, shock, love, toxicity &amp; spam bursts...
+              Scanning chat for fun moments, hype, bans, subs &amp; donations...
             </div>
           )}
 
@@ -790,6 +789,77 @@ export default function Home() {
             </p>
           )}
         </div>
+
+        {/* How highlights are picked — explanation section */}
+        {analyzeStatus === "done" && moments.length > 0 && (
+          <div className="mt-6 rounded-2xl bg-gray-900 p-6 shadow-xl">
+            <h2 className="mb-4 text-lg font-semibold text-white">How are highlights picked?</h2>
+            <div className="space-y-4 text-sm text-gray-400 leading-relaxed">
+              <p>
+                Clip_PNJ scans every chat message from the VOD replay and looks for the <strong className="text-gray-300">top 20 most exciting moments</strong> based on how the audience reacted in real time. Here&apos;s how it works:
+              </p>
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                {/* Step 1 */}
+                <div className="rounded-lg border border-gray-700 bg-gray-800/50 p-3">
+                  <p className="mb-1 text-xs font-semibold text-purple-300">1. Chat bucketing</p>
+                  <p className="text-xs text-gray-400">
+                    All chat messages are grouped into 30-second time windows. Each window tracks total messages, recognized emotes, and reaction keywords.
+                  </p>
+                </div>
+                {/* Step 2 */}
+                <div className="rounded-lg border border-gray-700 bg-gray-800/50 p-3">
+                  <p className="mb-1 text-xs font-semibold text-purple-300">2. Category scoring</p>
+                  <p className="text-xs text-gray-400">
+                    Every message is scored against 5 categories &mdash; <span className="text-yellow-300">Fun</span>, <span className="text-orange-300">Hype</span>, <span className="text-red-300">Ban</span>, <span className="text-purple-300">Sub</span>, and <span className="text-emerald-300">Donation</span> &mdash; using keyword and emote pattern matching.
+                  </p>
+                </div>
+                {/* Step 3 */}
+                <div className="rounded-lg border border-gray-700 bg-gray-800/50 p-3">
+                  <p className="mb-1 text-xs font-semibold text-purple-300">3. Spike detection</p>
+                  <p className="text-xs text-gray-400">
+                    A sliding window merges adjacent buckets, then a velocity score rewards sudden spikes &mdash; if chat goes from quiet to wild, that moment gets a big boost (up to 2.5x).
+                  </p>
+                </div>
+                {/* Step 4 */}
+                <div className="rounded-lg border border-gray-700 bg-gray-800/50 p-3">
+                  <p className="mb-1 text-xs font-semibold text-purple-300">4. Adaptive threshold</p>
+                  <p className="text-xs text-gray-400">
+                    Only moments significantly above the stream&apos;s average activity level are kept (mean + standard deviation). This adapts to each VOD &mdash; a quiet stream and a busy stream both get relevant highlights.
+                  </p>
+                </div>
+              </div>
+
+              <div className="rounded-lg border border-gray-700 bg-gray-800/50 p-3">
+                <p className="mb-1 text-xs font-semibold text-purple-300">5. Final ranking</p>
+                <p className="text-xs text-gray-400">
+                  All candidate moments are ranked by their composite score (message count + reaction intensity + emote richness + velocity bonus + diversity bonus). The top 20 are selected with a minimum 45-second gap between clips to avoid overlapping moments. Each highlight is tagged with its dominant category so you can quickly spot the fun, bans, subs, and donations.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap gap-3 pt-1">
+                {(Object.keys(TAG_CONFIG) as HighlightTag[]).map((tag) => {
+                  const cfg = TAG_CONFIG[tag];
+                  return (
+                    <div key={tag} className="flex items-center gap-1.5">
+                      <span className={`inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[10px] font-semibold ${cfg.color} ${cfg.bg} ${cfg.border} border`}>
+                        <span>{cfg.emoji}</span>
+                        <span>{cfg.label}</span>
+                      </span>
+                      <span className="text-[10px] text-gray-500">
+                        {tag === "fun" && "Laughter, jokes, comedic reactions"}
+                        {tag === "hype" && "Poggers, insane plays, excitement"}
+                        {tag === "ban" && "Bans, timeouts, moderation drama"}
+                        {tag === "sub" && "Subscriptions, gifted subs, sub trains"}
+                        {tag === "donation" && "Bits, cheers, donations, tips"}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Highlight scan counter */}
         <div className="mt-6 flex justify-center">

@@ -84,7 +84,7 @@ export async function POST(req: NextRequest) {
     clipDurationSec: 30,
     minGapSec: 45,
     thresholdFactor: 1.0,
-    maxHighlights: 0, // No limit — return all significant highlights
+    maxHighlights: 20, // Top 20 highlights
   });
 
   // Compute some stats for the response
