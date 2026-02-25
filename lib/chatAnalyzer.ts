@@ -40,172 +40,84 @@ interface CategoryPatterns {
 const CATEGORY_PATTERNS: Record<HighlightTag, CategoryPatterns> = {
   fun: {
     keywords: [
-      // French laughter
+      // French laughter (strong signals only)
       /\bmdr\b/i,
       /\bptdr\b/i,
       /\bxptdr\b/i,
-      /\btrop dr[oô]le\b/i,
       /\bmort\s*de\s*rire\b/i,
       /\bjpp\b/i,
-      // English laughter
-      /\blol\b/i,
+      // English laughter (strong signals only)
       /\blmao\b/i,
       /\blmfao\b/i,
       /\brofl\b/i,
-      // Laughter patterns
+      // Extended laughter patterns (must be genuine laughter, not just "lol")
       /ha(ha){2,}/i,
       /he(he){2,}/i,
-      /ja(ja){2,}/i,
-      /x[dD]{1,}/,
-      // Burp reactions (chat spams "EUWA" when streamer burps)
-      /\beu+wa+\b/i,
-      // Emojis — laughter / comedy
-      /😂|🤣|😆|😹/,
+      /x[dD]{2,}/,
+      // Laughter emojis
+      /😂|🤣/,
     ],
     emoteNames: new Set([
       "LUL", "LULW", "OMEGALUL", "KEKW", "ICANT", "pepeLaugh",
-      "EleGiggle", "4Head", "LUL_TK", "KEKHeim",
-      "KEKLEO", "forsenLUL",
+      "EleGiggle", "4Head",
     ]),
   },
 
   hype: {
     keywords: [
+      // Strong hype signals only
       /\blets?\s*go+\b/i,
       /\blet'?s\s*go+\b/i,
-      /\bgg\b/i,
-      /\bpog\b/i,
-      /\bpoggers\b/i,
+      /\bpog(gers)?\b/i,
       /\bclip\s*(it|that|this)\b/i,
-      /\bclipped\b/i,
       /\binsane\b/i,
-      /\bcrazy\b/i,
-      /\bclean\b/i,
-      /\bgod\s*(like|tier|damn)\b/i,
-      /\bgoat\b/i,
-      /\bmassi[fv]e?\b/i,
-      /\bmonster\b/i,
-      /\bbest\b/i,
-      /\bunreal\b/i,
-      /\bwow\b/i,
-      /\bgg\s*(wp|ez)\b/i,
-      /\bez\s*(clap|game)?\b/i,
-      /\bW\b/,
-      /!{3,}/,  // "!!!" excitement
-      // Shock / surprise (merged into hype)
+      /\bgod\s*(like|tier)\b/i,
+      // Strong shock/surprise
       /\bomg\b/i,
       /\bwtf\b/i,
+      /\bholy\s*(shit|cow|moly|f+)\b/i,
       /\bno\s*way\b/i,
-      /\bholy\s*(shit|cow|moly|crap|f+)?\b/i,
-      /\bbruh\b/i,
-      /\bjsp\b/i,
-      /\boh\s*(my\s*)?(god|lord|no)\b/i,
-      /🔥|💯|🎉|🏆|👑|😱|😮|💀/,
+      /🔥|😱/,
     ],
     emoteNames: new Set([
-      "PogChamp", "Pog", "PogU", "PogSlide", "POGGIES", "POGCRAZY",
-      "catJAM", "Clap", "EZ", "COPIUM", "HOPIUM",
-      "Kreygasm", "HYPERS", "gachiGASM", "PogBones",
-      "monkaS", "monkaW", "WutFace", "Jebaited", "NotLikeThis",
+      "PogChamp", "Pog", "PogU", "POGGIES", "POGCRAZY",
+      "Kreygasm", "HYPERS", "gachiGASM",
+      "monkaS", "monkaW", "WutFace",
     ]),
   },
 
   ban: {
     keywords: [
-      // Ban / moderation events
-      /\bban(n?ed|s)?\b/i,
-      /\btimeout\b/i,
-      /\bmuted?\b/i,
-      /\bkick(ed)?\b/i,
-      /\breport(ed)?\b/i,
-      /\bmod(s)?\b/i,
-      /\bdeserved\b/i,
-      /\bunban\b/i,
-      // "F" and "rip" reactions to bans
-      /\bF\b/,
-      /\brip\b/i,
-      /\bL\b/,
-      // Toxic / drama reactions that accompany bans
-      /\btroll(ing|ed|er)?\b/i,
-      /\btoxic\b/i,
-      /\brage\s*(quit)?\b/i,
-      /\bcringe\b/i,
-      /\btrash\b/i,
-      /\bnoob\b/i,
-      /🤡|🖕|😡|🤬|💀/,
+      // ONLY exact Twitch system message for bans
+      /has been banned/i,
     ],
     emoteNames: new Set([
-      "Sadge", "PepeHands", "FeelsBadMan", "BabyRage", "SwiftRage",
-      "DansGame", "FailFish", "SMOrc", "haHAA", "WeirdChamp", "Pepega",
-      "KEKW", "OMEGALUL", "crabrave", "crabPls",
+      "crabrave", "crabPls",
     ]),
   },
 
   sub: {
     keywords: [
-      // English sub patterns
-      /\bsub(scrib(e|ed|ing))?\b/i,
-      /\bresub(bed)?\b/i,
-      /\bgift(ed)?\s*(a\s*)?sub\b/i,
-      /\bsub\s*train\b/i,
-      /\bsub\s*hype\b/i,
-      /\btier\s*[123]\b/i,
-      /\bprime\s*(sub|gaming)?\b/i,
-      /\bwelcome\b/i,
-      /\bnew\s*sub\b/i,
-      /\bgifted\b/i,
-      // French sub patterns
-      /\babonn[eé](ment)?\b/i,
-      /\bbienvenu(e)?\b/i,
-      // Sub milestone reactions
-      /\bmonths?\b/i,
-      /\bstreak\b/i,
-      /\banniversary\b/i,
-      // Common sub celebration reactions
-      /\bmerci\b/i,
-      /\bthank\s*(you|u)\b/i,
-      /\blove\b/i,
-      /\bwelcome\b/i,
-      /❤️?|🥰|😍|💕|💗|💖|⭐|🌟|❤/,
+      // ONLY exact Twitch system message for mass gifting
+      // (the number check >= 15 is handled in scoreMessage)
+      /is gifting/i,
     ],
-    emoteNames: new Set([
-      "peepoLove", "peepoHappy", "<3", "FeelsGoodMan", "widepeepoHappy",
-      "peepoClap", "peepoBlush", "catHug", "BibleThump",
-      "HeyGuys", "VirtualHug", "TwitchUnity", "PogChamp",
-      "HypeCheer", "FallHalp", "SeemsGood",
-    ]),
+    emoteNames: new Set([]),
   },
 
   donation: {
     keywords: [
-      // Bits / cheers
-      /\bcheer\d*/i,
-      /\bbits?\b/i,
-      /\bcheer\b/i,
+      // Bits / cheers (Twitch-specific)
+      /\bcheer\d+/i,
+      /\bbits\b/i,
       // Donation patterns
-      /\bdon(o|at(e|ion|ed))?\b/i,
-      /\btip(ped|s)?\b/i,
-      /\b\d+\s*\$\b/,
+      /\bdon(o|at(e|ion|ed))\b/i,
       /\$\s*\d+/,
-      /\b\d+\s*euros?\b/i,
       /\b\d+\s*€/,
-      // French donation patterns
-      /\bmerci\s*(pour|for)\b/i,
-      /\bgénéreu[sx]\b/i,
-      /\bgénérosité\b/i,
-      // Superchat / support
-      /\bsuperchat\b/i,
-      /\bsupport\b/i,
-      /\bcontribut(e|ion)\b/i,
-      // Celebration reactions to donations
-      /\bgénial\b/i,
-      /\bwow\b/i,
       /💰|💵|💲|💎|🎁|💸|🤑/,
     ],
     emoteNames: new Set([
-      "PogChamp", "Pog", "HYPERS", "peepoHappy", "widepeepoHappy",
-      "Clap", "catJAM", "peepoClap", "EZ",
-      "HypeCheer", "BibleThump", "TwitchUnity",
+      "HypeCheer",
     ]),
   },
 };
@@ -236,7 +148,28 @@ export function scoreMessage(msg: ChatMessage): MessageScore {
 
   const text = msg.text;
 
-  // --- Emote scoring per fragment ---
+  // ── High-value event detection (exact Twitch system messages) ──
+
+  // Ban: "has been banned" — big bonus so it always surfaces
+  if (/has been banned/i.test(text)) {
+    reactionScore += 15;
+    categories.ban += 15;
+  }
+
+  // Sub gifting: "is gifting N" — only counts if N >= 15
+  const giftMatch = text.match(/is gifting (\d+)/i);
+  if (giftMatch) {
+    const count = parseInt(giftMatch[1], 10);
+    if (count >= 15) {
+      // Scale bonus with gift count: 15 gifts = 10, 50 gifts = 20 (capped)
+      const bonus = Math.min(Math.round(count * 0.6), 20);
+      reactionScore += bonus;
+      categories.sub += bonus;
+    }
+    // If < 15, do NOT score as sub at all — skip sub keyword matching below
+  }
+
+  // ── Emote scoring per fragment ──
   for (const frag of msg.fragments) {
     if (!frag.emote) continue;
     const emoteName = frag.text.trim();
@@ -251,8 +184,14 @@ export function scoreMessage(msg: ChatMessage): MessageScore {
     }
   }
 
-  // --- Keyword scoring per category ---
+  // ── Keyword scoring per category ──
   for (const cat of Object.keys(CATEGORY_PATTERNS) as Array<keyof typeof CATEGORY_PATTERNS>) {
+    // Skip sub keyword matching for messages that are small gift events (< 15)
+    // They already got 0 from the special handler above
+    if (cat === "sub" && giftMatch && parseInt(giftMatch[1], 10) < 15) continue;
+    // Skip sub keyword matching for non-gift messages (only system gift msgs count)
+    if (cat === "sub" && !giftMatch) continue;
+
     for (const pattern of CATEGORY_PATTERNS[cat].keywords) {
       if (pattern.test(text)) {
         reactionScore += 1;
@@ -262,16 +201,10 @@ export function scoreMessage(msg: ChatMessage): MessageScore {
     }
   }
 
-  // --- ALL CAPS detection (excitement indicator, min 5 chars) ---
+  // ── ALL CAPS detection (excitement indicator, min 5 chars) ──
   if (text.length >= 5 && text === text.toUpperCase() && /[A-Z]/.test(text)) {
     reactionScore += 0.5;
     categories.hype += 0.5;
-  }
-
-  // --- Repeated character spam detection (e.g. "AAAAAA", "GGGGGG") ---
-  if (/(.)\1{5,}/i.test(text)) {
-    reactionScore += 0.5;
-    categories.hype += 0.3;
   }
 
   return { reactionScore, emoteCount, categories };

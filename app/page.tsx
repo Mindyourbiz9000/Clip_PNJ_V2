@@ -796,7 +796,7 @@ export default function Home() {
             <h2 className="mb-4 text-lg font-semibold text-white">How are highlights picked?</h2>
             <div className="space-y-4 text-sm text-gray-400 leading-relaxed">
               <p>
-                Clip_PNJ scans every chat message from the VOD replay and looks for the <strong className="text-gray-300">top 20 most exciting moments</strong> based on how the audience reacted in real time. Here&apos;s how it works:
+                Clip_PNJ scans every chat message from the VOD replay and picks the <strong className="text-gray-300">top 15 absolute best moments</strong>. Only the strongest signals make the cut:
               </p>
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -809,9 +809,12 @@ export default function Home() {
                 </div>
                 {/* Step 2 */}
                 <div className="rounded-lg border border-gray-700 bg-gray-800/50 p-3">
-                  <p className="mb-1 text-xs font-semibold text-purple-300">2. Category scoring</p>
+                  <p className="mb-1 text-xs font-semibold text-purple-300">2. Precise event detection</p>
                   <p className="text-xs text-gray-400">
-                    Every message is scored against 5 categories &mdash; <span className="text-yellow-300">Fun</span>, <span className="text-orange-300">Hype</span>, <span className="text-red-300">Ban</span>, <span className="text-purple-300">Sub</span>, and <span className="text-emerald-300">Donation</span> &mdash; using keyword and emote pattern matching.
+                    <span className="text-red-300">Bans</span> are detected from the exact <em>&quot;has been banned&quot;</em> system message.{" "}
+                    <span className="text-purple-300">Subs</span> are detected from <em>&quot;is gifting N&quot;</em> only when N &ge; 15.{" "}
+                    <span className="text-yellow-300">Fun</span> and <span className="text-orange-300">Hype</span> use tight emote &amp; keyword patterns (OMEGALUL, PogChamp, MDR, etc.).{" "}
+                    <span className="text-emerald-300">Donations</span> pick up Cheer bits and donation messages.
                   </p>
                 </div>
                 {/* Step 3 */}
@@ -823,17 +826,17 @@ export default function Home() {
                 </div>
                 {/* Step 4 */}
                 <div className="rounded-lg border border-gray-700 bg-gray-800/50 p-3">
-                  <p className="mb-1 text-xs font-semibold text-purple-300">4. Adaptive threshold</p>
+                  <p className="mb-1 text-xs font-semibold text-purple-300">4. Strict threshold</p>
                   <p className="text-xs text-gray-400">
-                    Only moments significantly above the stream&apos;s average activity level are kept (mean + standard deviation). This adapts to each VOD &mdash; a quiet stream and a busy stream both get relevant highlights.
+                    Only moments well above the stream&apos;s average activity are kept (mean + 1.5&times; standard deviation). This filters out ordinary chatter and keeps only the real peaks.
                   </p>
                 </div>
               </div>
 
               <div className="rounded-lg border border-gray-700 bg-gray-800/50 p-3">
-                <p className="mb-1 text-xs font-semibold text-purple-300">5. Final ranking</p>
+                <p className="mb-1 text-xs font-semibold text-purple-300">5. Top 15 selection</p>
                 <p className="text-xs text-gray-400">
-                  All candidate moments are ranked by their composite score (message count + reaction intensity + emote richness + velocity bonus + diversity bonus). The top 20 are selected with a minimum 45-second gap between clips to avoid overlapping moments. Each highlight is tagged with its dominant category so you can quickly spot the fun, bans, subs, and donations.
+                  All candidates are ranked by composite score (reactions + emotes + velocity + diversity). The top 15 are selected with a minimum 60-second gap to avoid overlap. Each is tagged with its dominant category.
                 </p>
               </div>
 
@@ -847,11 +850,11 @@ export default function Home() {
                         <span>{cfg.label}</span>
                       </span>
                       <span className="text-[10px] text-gray-500">
-                        {tag === "fun" && "Laughter, jokes, comedic reactions"}
-                        {tag === "hype" && "Poggers, insane plays, excitement"}
-                        {tag === "ban" && "Bans, timeouts, moderation drama"}
-                        {tag === "sub" && "Subscriptions, gifted subs, sub trains"}
-                        {tag === "donation" && "Bits, cheers, donations, tips"}
+                        {tag === "fun" && "Strong laughter: MDR, PTDR, LMAO, OMEGALUL, KEKW"}
+                        {tag === "hype" && "PogChamp, lets go, insane plays, OMG, WTF"}
+                        {tag === "ban" && "Exact \"has been banned\" system messages"}
+                        {tag === "sub" && "Mass gifting events (15+ subs)"}
+                        {tag === "donation" && "Cheer bits, donations, tips"}
                       </span>
                     </div>
                   );
