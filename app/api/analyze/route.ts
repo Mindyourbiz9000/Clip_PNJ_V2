@@ -93,12 +93,23 @@ export async function POST(req: NextRequest) {
     totalMessages += b.messageCount;
   }
 
+  // Build per-minute message count timeline for the chart
+  const minuteBuckets = new Map<number, number>();
+  for (const b of buckets.values()) {
+    const minuteKey = Math.floor(b.startSec / 60) * 60;
+    minuteBuckets.set(minuteKey, (minuteBuckets.get(minuteKey) ?? 0) + b.messageCount);
+  }
+  const timeline = Array.from(minuteBuckets.entries())
+    .sort((a, b) => a[0] - b[0])
+    .map(([sec, count]) => ({ sec, count }));
+
   return new Response(
     JSON.stringify({
       videoId,
       totalMessages,
       bucketsAnalyzed: buckets.size,
       moments,
+      timeline,
     }),
     {
       status: 200,

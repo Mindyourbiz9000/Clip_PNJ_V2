@@ -475,6 +475,207 @@ function HighlightScanCounter({ value }: { value: number }) {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Chat Activity Chart (SVG)                                          */
+/* ------------------------------------------------------------------ */
+
+interface TimelinePoint {
+  sec: number;
+  count: number;
+}
+
+function ChatActivityChart({
+  timeline,
+  moments,
+  onSeek,
+}: {
+  timeline: TimelinePoint[];
+  moments: HypeMoment[];
+  onSeek?: (seconds: number) => void;
+}) {
+  const svgRef = useRef<SVGSVGElement>(null);
+  const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
+  const [dimensions, setDimensions] = useState({ width: 800, height: 200 });
+
+  // Responsive: measure container width
+  useEffect(() => {
+    const svg = svgRef.current;
+    if (!svg) return;
+    const observer = new ResizeObserver((entries) => {
+      const { width } = entries[0].contentRect;
+      if (width > 0) setDimensions({ width, height: 200 });
+    });
+    observer.observe(svg.parentElement!);
+    return () => observer.disconnect();
+  }, []);
+
+  if (timeline.length === 0) return null;
+
+  const { width, height } = dimensions;
+  const padLeft = 45;
+  const padRight = 12;
+  const padTop = 12;
+  const padBottom = 28;
+  const chartW = width - padLeft - padRight;
+  const chartH = height - padTop - padBottom;
+
+  const maxSec = timeline[timeline.length - 1].sec;
+  const minSec = timeline[0].sec;
+  const timeRange = maxSec - minSec || 1;
+  const maxCount = Math.max(...timeline.map((p) => p.count), 1);
+
+  const x = (sec: number) => padLeft + ((sec - minSec) / timeRange) * chartW;
+  const y = (count: number) => padTop + chartH - (count / maxCount) * chartH;
+
+  // Build the area path
+  const points = timeline.map((p) => `${x(p.sec)},${y(p.count)}`);
+  const areaPath = `M${x(minSec)},${y(0)} L${points.join(" L")} L${x(timeline[timeline.length - 1].sec)},${y(0)} Z`;
+  const linePath = `M${points.join(" L")}`;
+
+  // Y axis ticks (4 ticks)
+  const yTicks = [0, 0.25, 0.5, 0.75, 1].map((frac) => ({
+    val: Math.round(maxCount * frac),
+    y: padTop + chartH - frac * chartH,
+  }));
+
+  // X axis ticks (every ~15 minutes or so, adaptive)
+  const totalMinutes = timeRange / 60;
+  const tickInterval = totalMinutes <= 30 ? 5 : totalMinutes <= 120 ? 15 : totalMinutes <= 300 ? 30 : 60;
+  const xTicks: Array<{ sec: number; label: string }> = [];
+  const firstTick = Math.ceil(minSec / 60 / tickInterval) * tickInterval * 60;
+  for (let s = firstTick; s <= maxSec; s += tickInterval * 60) {
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    xTicks.push({ sec: s, label: h > 0 ? `${h}:${m.toString().padStart(2, "0")}` : `${m}m` });
+  }
+
+  // Handle click on chart
+  function handleClick(e: React.MouseEvent<SVGSVGElement>) {
+    if (!onSeek) return;
+    const rect = svgRef.current!.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const sec = minSec + ((mouseX - padLeft) / chartW) * timeRange;
+    if (sec >= minSec && sec <= maxSec) {
+      onSeek(Math.round(sec));
+    }
+  }
+
+  // Handle hover
+  function handleMove(e: React.MouseEvent<SVGSVGElement>) {
+    const rect = svgRef.current!.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const sec = minSec + ((mouseX - padLeft) / chartW) * timeRange;
+    // Find closest timeline point
+    let closest = 0;
+    let closestDist = Infinity;
+    for (let i = 0; i < timeline.length; i++) {
+      const d = Math.abs(timeline[i].sec - sec);
+      if (d < closestDist) {
+        closestDist = d;
+        closest = i;
+      }
+    }
+    setHoveredIdx(closest);
+  }
+
+  const hovered = hoveredIdx !== null ? timeline[hoveredIdx] : null;
+
+  return (
+    <div className="relative">
+      <svg
+        ref={svgRef}
+        width="100%"
+        height={height}
+        viewBox={`0 0 ${width} ${height}`}
+        preserveAspectRatio="none"
+        className="cursor-crosshair"
+        onClick={handleClick}
+        onMouseMove={handleMove}
+        onMouseLeave={() => setHoveredIdx(null)}
+      >
+        {/* Grid lines */}
+        {yTicks.map((t) => (
+          <line key={t.val} x1={padLeft} x2={width - padRight} y1={t.y} y2={t.y} stroke="#374151" strokeWidth={0.5} />
+        ))}
+
+        {/* Highlight moment regions */}
+        {moments.map((m, i) => {
+          const x1 = Math.max(padLeft, x(m.startSec));
+          const x2 = Math.min(width - padRight, x(m.endSec));
+          if (x2 <= x1) return null;
+          const tagCfg = TAG_CONFIG[m.tag] ?? TAG_CONFIG.hype;
+          // Extract the base color for the fill
+          const fillColor = m.tag === "fun" ? "rgba(234,179,8,0.15)"
+            : m.tag === "hype" ? "rgba(249,115,22,0.15)"
+            : m.tag === "ban" ? "rgba(239,68,68,0.15)"
+            : m.tag === "sub" ? "rgba(168,85,247,0.15)"
+            : "rgba(16,185,129,0.15)";
+          return (
+            <rect
+              key={`hl-${i}`}
+              x={x1}
+              y={padTop}
+              width={x2 - x1}
+              height={chartH}
+              fill={fillColor}
+            />
+          );
+        })}
+
+        {/* Area fill */}
+        <path d={areaPath} fill="url(#areaGrad)" />
+        {/* Line */}
+        <path d={linePath} fill="none" stroke="#a78bfa" strokeWidth={1.5} />
+
+        {/* Gradient definition */}
+        <defs>
+          <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#a78bfa" stopOpacity={0.3} />
+            <stop offset="100%" stopColor="#a78bfa" stopOpacity={0.02} />
+          </linearGradient>
+        </defs>
+
+        {/* Y axis labels */}
+        {yTicks.map((t) => (
+          <text key={`yl-${t.val}`} x={padLeft - 6} y={t.y + 3} textAnchor="end" className="fill-gray-500" fontSize={10}>
+            {t.val}
+          </text>
+        ))}
+
+        {/* X axis labels */}
+        {xTicks.map((t) => (
+          <text key={`xl-${t.sec}`} x={x(t.sec)} y={height - 6} textAnchor="middle" className="fill-gray-500" fontSize={10}>
+            {t.label}
+          </text>
+        ))}
+
+        {/* Hover crosshair + tooltip */}
+        {hovered && (
+          <>
+            <line x1={x(hovered.sec)} x2={x(hovered.sec)} y1={padTop} y2={padTop + chartH} stroke="#a78bfa" strokeWidth={1} strokeDasharray="3,3" opacity={0.6} />
+            <circle cx={x(hovered.sec)} cy={y(hovered.count)} r={3.5} fill="#a78bfa" stroke="#1f2937" strokeWidth={1.5} />
+          </>
+        )}
+      </svg>
+
+      {/* Tooltip */}
+      {hovered && (
+        <div
+          className="pointer-events-none absolute -top-1 rounded bg-gray-800 border border-gray-600 px-2 py-1 text-xs text-gray-200 shadow-lg"
+          style={{
+            left: `${Math.min(Math.max(x(hovered.sec), 60), width - 100)}px`,
+            transform: "translateX(-50%)",
+          }}
+        >
+          <span className="text-purple-300 font-mono">{formatTime(hovered.sec)}</span>
+          {" "}&middot;{" "}
+          <span className="font-semibold">{hovered.count}</span> msgs/min
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /*  Main Page                                                          */
 /* ------------------------------------------------------------------ */
 
@@ -486,6 +687,7 @@ export default function Home() {
   const [analyzeError, setAnalyzeError] = useState("");
   const [moments, setMoments] = useState<HypeMoment[]>([]);
   const [totalMessages, setTotalMessages] = useState(0);
+  const [timeline, setTimeline] = useState<TimelinePoint[]>([]);
   const [selectedMomentIdx, setSelectedMomentIdx] = useState<number | null>(null);
 
   // Highlight detection counter (persisted on server)
@@ -508,6 +710,7 @@ export default function Home() {
     setAnalyzeStatus("analyzing");
     setAnalyzeError("");
     setMoments([]);
+    setTimeline([]);
     setSelectedMomentIdx(null);
 
     // Increment the global counter
@@ -531,6 +734,7 @@ export default function Home() {
       const data = await res.json();
       setMoments(data.moments ?? []);
       setTotalMessages(data.totalMessages ?? 0);
+      setTimeline(data.timeline ?? []);
       setAnalyzeStatus("done");
     } catch (err) {
       setAnalyzeStatus("error");
@@ -615,6 +819,7 @@ export default function Home() {
               if (analyzeStatus !== "idle") {
                 setAnalyzeStatus("idle");
                 setMoments([]);
+                setTimeline([]);
                 setSelectedMomentIdx(null);
               }
             }}
@@ -780,6 +985,34 @@ export default function Home() {
                   );
                 })}
               </div>
+            </div>
+          )}
+
+          {/* Chat Activity Graph */}
+          {analyzeStatus === "done" && timeline.length > 0 && (
+            <div className="mt-5">
+              <p className="mb-2 text-xs font-medium text-gray-400">Chat activity (messages per minute)</p>
+              <div className="rounded-lg border border-gray-700 bg-gray-800/50 p-2">
+                <ChatActivityChart
+                  timeline={timeline}
+                  moments={moments}
+                  onSeek={(seconds) => {
+                    if (playerRef.current) {
+                      try {
+                        playerRef.current.seek(seconds);
+                        playerRef.current.play();
+                      } catch {
+                        // Player might not support seek yet
+                      }
+                    }
+                  }}
+                />
+              </div>
+              {moments.length > 0 && (
+                <p className="mt-1.5 text-[10px] text-gray-500">
+                  Colored bands = detected highlights. Click anywhere on the chart to jump to that moment.
+                </p>
+              )}
             </div>
           )}
 
