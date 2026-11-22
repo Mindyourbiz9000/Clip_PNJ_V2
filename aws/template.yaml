@@ -1,0 +1,181 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Clip_PNJ sur une instance EC2 (Docker + Caddy en HTTPS automatique).
+
+Parameters:
+  InstanceType:
+    Type: String
+    Default: t4g.small
+    Description: ARM (Graviton). t4g.small = 2 vCPU / 2 Go, environ 12 USD/mois.
+  RepoUrl:
+    Type: String
+    Default: https://github.com/Mindyourbiz9000/Clip_PNJ_V2.git
+  Branch:
+    Type: String
+    Default: main
+  DomainName:
+    Type: String
+    Default: ""
+    Description: Optionnel. Nom de domaine dont l'enregistrement A pointe vers l'IP publique.
+  AmiId:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-arm64
+
+Conditions:
+  HasDomain: !Not [!Equals [!Ref DomainName, ""]]
+
+Resources:
+  Vpc:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.42.0.0/16
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+      Tags: [{ Key: Name, Value: !Ref AWS::StackName }]
+  Igw:
+    Type: AWS::EC2::InternetGateway
+  IgwAttach:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties: { VpcId: !Ref Vpc, InternetGatewayId: !Ref Igw }
+  Subnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      CidrBlock: 10.42.1.0/24
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      MapPublicIpOnLaunch: true
+  RouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties: { VpcId: !Ref Vpc }
+  DefaultRoute:
+    Type: AWS::EC2::Route
+    DependsOn: IgwAttach
+    Properties:
+      RouteTableId: !Ref RouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref Igw
+  SubnetRoute:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties: { SubnetId: !Ref Subnet, RouteTableId: !Ref RouteTable }
+
+  WebSg:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: HTTP/HTTPS public (pas de SSH, administration via SSM)
+      VpcId: !Ref Vpc
+      SecurityGroupIngress:
+        - { IpProtocol: tcp, FromPort: 80, ToPort: 80, CidrIp: 0.0.0.0/0 }
+        - { IpProtocol: tcp, FromPort: 443, ToPort: 443, CidrIp: 0.0.0.0/0 }
+
+  Role:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: ec2.amazonaws.com }
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+  Profile:
+    Type: AWS::IAM::InstanceProfile
+    Properties: { Roles: [!Ref Role] }
+
+  Eip:
+    Type: AWS::EC2::EIP
+    DependsOn: IgwAttach
+    Properties: { Domain: vpc }
+
+  Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !Ref AmiId
+      InstanceType: !Ref InstanceType
+      SubnetId: !Ref Subnet
+      SecurityGroupIds: [!Ref WebSg]
+      IamInstanceProfile: !Ref Profile
+      MetadataOptions: { HttpTokens: required }
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs: { VolumeSize: 20, VolumeType: gp3, Encrypted: true }
+      Tags: [{ Key: Name, Value: !Ref AWS::StackName }]
+      UserData:
+        Fn::Base64: !Sub
+          - |
+            #!/bin/bash
+            set -euxo pipefail
+            exec > >(tee /var/log/clip-setup.log) 2>&1
+
+            dnf install -y docker git
+            systemctl enable --now docker
+
+            # 2 Go de swap pour que le build Next.js et FFmpeg tiennent en mémoire
+            if [ ! -f /swapfile ]; then
+              fallocate -l 2G /swapfile && chmod 600 /swapfile && mkswap /swapfile
+              echo '/swapfile none swap sw 0 0' >> /etc/fstab
+            fi
+            swapon -a || true
+
+            mkdir -p /opt/clip/data /opt/clip/caddy
+            cat > /opt/clip/caddy/Caddyfile <<CADDY
+            ${Hosts} {
+              encode gzip
+              reverse_proxy app:3000
+            }
+            CADDY
+
+            cat > /opt/clip/update.sh <<'UPDATE'
+            #!/bin/bash
+            # Récupère la dernière version du code, reconstruit l'image et relance l'app.
+            set -euo pipefail
+            source /opt/clip/env
+            cd /opt/clip
+            if [ -d src/.git ]; then
+              git -C src fetch --depth 1 origin "$BRANCH" && git -C src reset --hard FETCH_HEAD
+            else
+              git clone --depth 1 --branch "$BRANCH" "$REPO_URL" src
+            fi
+            docker build -t clip-pnj src
+            docker network inspect clip >/dev/null 2>&1 || docker network create clip
+            docker rm -f app >/dev/null 2>&1 || true
+            docker run -d --name app --network clip --restart unless-stopped \
+              -e MAX_CLIP_SECONDS=60 -e FFMPEG_TIMEOUT_SECONDS=120 -e MAX_CONCURRENT=1 \
+              --tmpfs /tmp:size=1g -v /opt/clip/data:/app/data clip-pnj
+            if ! docker ps --format '{{.Names}}' | grep -qx caddy; then
+              docker rm -f caddy >/dev/null 2>&1 || true
+              docker run -d --name caddy --network clip --restart unless-stopped \
+                -p 80:80 -p 443:443 \
+                -v /opt/clip/caddy/Caddyfile:/etc/caddy/Caddyfile:ro \
+                -v caddy_data:/data -v caddy_config:/config caddy:2
+            else
+              docker exec caddy caddy reload --config /etc/caddy/Caddyfile || docker restart caddy
+            fi
+            docker image prune -f >/dev/null
+            echo "OK"
+            UPDATE
+            printf "REPO_URL='%s'\nBRANCH='%s'\n" '${RepoUrl}' '${Branch}' > /opt/clip/env
+            chmod +x /opt/clip/update.sh
+            /opt/clip/update.sh
+          - Hosts: !If
+              - HasDomain
+              - !Join ["", [!Join ["-", !Split [".", !Ref Eip]], ".sslip.io, ", !Ref DomainName]]
+              - !Join ["", [!Join ["-", !Split [".", !Ref Eip]], ".sslip.io"]]
+
+  EipAssoc:
+    Type: AWS::EC2::EIPAssociation
+    Properties:
+      AllocationId: !GetAtt Eip.AllocationId
+      InstanceId: !Ref Instance
+
+Outputs:
+  Url:
+    Value: !Sub
+      - https://${Dashed}.sslip.io
+      - Dashed: !Join ["-", !Split [".", !Ref Eip]]
+  DomainUrl:
+    Condition: HasDomain
+    Value: !Sub https://${DomainName}
+  PublicIp:
+    Value: !Ref Eip
+  InstanceId:
+    Value: !Ref Instance
