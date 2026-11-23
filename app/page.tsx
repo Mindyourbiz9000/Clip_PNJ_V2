@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { I18nProvider, LanguageSwitch, rich, useI18n } from "@/lib/i18n";
 import {
   DEFAULT_KEYWORDS,
   KEYWORD_CATEGORIES,
@@ -170,6 +171,7 @@ function ChatReplayPanel({
   currentTime: number;
   onSeek?: (seconds: number) => void;
 }) {
+  const { t } = useI18n();
   const [messages, setMessages] = useState<ChatMsg[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -230,7 +232,7 @@ function ChatReplayPanel({
       if (cursor) params.set("cursor", cursor);
       const res = await fetch(`/api/chat?${params}`);
       if (!res.ok) {
-        const data = await res.json().catch(() => ({ error: "Failed to load chat" }));
+        const data = await res.json().catch(() => ({ error: t.failedLoadChat }));
         throw new Error(data.error);
       }
       const data = await res.json();
@@ -243,7 +245,7 @@ function ChatReplayPanel({
       });
       setNextCursor(data.nextCursor);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load chat");
+      setError(err instanceof Error ? err.message : t.failedLoadChat);
     } finally {
       setLoading(false);
       fetchingRef.current = false;
@@ -276,13 +278,13 @@ function ChatReplayPanel({
       const params = new URLSearchParams({ url, q });
       const res = await fetch(`/api/chat/search?${params}`);
       if (!res.ok) {
-        const data = await res.json().catch(() => ({ error: "Search failed" }));
+        const data = await res.json().catch(() => ({ error: t.searchFailed }));
         throw new Error(data.error);
       }
       const data = await res.json();
       setSearchResults(data.hits ?? []);
     } catch (err) {
-      setSearchError(err instanceof Error ? err.message : "Search failed");
+      setSearchError(err instanceof Error ? err.message : t.searchFailed);
     } finally {
       setSearching(false);
     }
@@ -299,10 +301,10 @@ function ChatReplayPanel({
     <div className="flex h-full flex-col rounded-lg border border-gray-700 bg-gray-900">
       {/* Header */}
       <div className="flex items-center justify-between border-b border-gray-700 px-3 py-2">
-        <span className="text-sm font-semibold text-gray-300">Chat Replay</span>
+        <span className="text-sm font-semibold text-gray-300">{t.chatReplay}</span>
         <div className="flex items-center gap-2">
           <span className="text-xs text-gray-500">
-            {visibleMessages.length} / {messages.length} msgs
+            {visibleMessages.length} / {messages.length} {t.msgs}
           </span>
           <button
             onClick={() => {
@@ -311,7 +313,7 @@ function ChatReplayPanel({
                 setTimeout(() => searchInputRef.current?.focus(), 50);
               }
             }}
-            title="Search chat"
+            title={t.searchChat}
             className="rounded p-1 text-gray-400 hover:bg-gray-700 hover:text-gray-200 transition"
           >
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -330,7 +332,7 @@ function ChatReplayPanel({
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search chat messages..."
+              placeholder={t.searchPlaceholder}
               className="flex-1 rounded border border-gray-600 bg-gray-900 px-2.5 py-1.5 text-xs text-white placeholder-gray-500 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
             />
             <button
@@ -338,7 +340,7 @@ function ChatReplayPanel({
               disabled={searching || searchQuery.trim().length < 2}
               className="rounded bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition"
             >
-              {searching ? "..." : "Search"}
+              {searching ? "..." : t.search}
             </button>
           </form>
 
@@ -349,7 +351,7 @@ function ChatReplayPanel({
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
               </svg>
-              Scanning full chat replay...
+              {t.scanningFullChat}
             </div>
           )}
 
@@ -358,7 +360,7 @@ function ChatReplayPanel({
           {!searching && searchResults.length > 0 && (
             <div className="max-h-48 overflow-y-auto space-y-0.5">
               <p className="text-xs text-gray-500 mb-1">
-                {searchResults.length} result{searchResults.length !== 1 ? "s" : ""} found
+                {t.resultsFound(searchResults.length)}
               </p>
               {searchResults.map((hit, i) => (
                 <button
@@ -376,7 +378,7 @@ function ChatReplayPanel({
           )}
 
           {!searching && !searchError && searchResults.length === 0 && searchQuery.trim().length >= 2 && (
-            <p className="text-xs text-gray-500">No results. Try a different keyword.</p>
+            <p className="text-xs text-gray-500">{t.noResults}</p>
           )}
         </div>
       )}
@@ -391,7 +393,7 @@ function ChatReplayPanel({
         {error && <p className="text-xs text-red-400 py-2">{error}</p>}
         {visibleMessages.length === 0 && !loading && !error && (
           <p className="text-xs text-gray-500 py-4 text-center">
-            Chat messages will appear here as the video plays...
+            {t.chatWillAppear}
           </p>
         )}
         {visibleMessages.map((msg, i) => (
@@ -427,7 +429,7 @@ function ChatReplayPanel({
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
             </svg>
-            Loading chat...
+            {t.loadingChat}
           </div>
         )}
       </div>
@@ -446,7 +448,7 @@ function ChatReplayPanel({
           }}
           className="border-t border-gray-700 px-3 py-1.5 text-xs text-purple-400 hover:bg-gray-800 transition"
         >
-          Resume auto-scroll
+          {t.resumeAutoScroll}
         </button>
       )}
     </div>
@@ -458,6 +460,7 @@ function ChatReplayPanel({
 /* ------------------------------------------------------------------ */
 
 function HighlightScanCounter({ value }: { value: number }) {
+  const { t } = useI18n();
   const digits = String(value).padStart(5, "0").split("");
 
   return (
@@ -480,7 +483,7 @@ function HighlightScanCounter({ value }: { value: number }) {
       </div>
       {/* Label */}
       <span className="text-xs font-medium tracking-wide text-gray-500">
-        Highlight scans performed
+        {t.scansPerformed}
       </span>
     </div>
   );
@@ -510,6 +513,7 @@ function KeywordEditor({
   keywords: KeywordConfig;
   onChange: (next: KeywordConfig) => void;
 }) {
+  const { t } = useI18n();
   const [drafts, setDrafts] = useState<Record<KeywordCategory, string>>({ fun: "", hype: "", donation: "" });
   const modified = KEYWORD_CATEGORIES.some((c) => !sameList(keywords[c], DEFAULT_KEYWORDS[c]));
 
@@ -531,24 +535,19 @@ function KeywordEditor({
     <details className="group mt-4 rounded-lg border border-gray-700 bg-gray-800/40">
       <summary className="flex cursor-pointer select-none items-center justify-between gap-2 px-4 py-3 text-sm font-medium text-gray-200">
         <span>
-          🔤 Detection keywords
+          🔤 {t.kwTitle}
           {modified && (
             <span className="ml-2 rounded-full bg-indigo-500/20 px-2 py-0.5 text-[10px] font-semibold text-indigo-300">
-              customized
+              {t.kwCustomized}
             </span>
           )}
         </span>
-        <span className="text-xs text-gray-500 group-open:hidden">Show &amp; edit</span>
-        <span className="hidden text-xs text-gray-500 group-open:inline">Hide</span>
+        <span className="text-xs text-gray-500 group-open:hidden">{t.kwShow}</span>
+        <span className="hidden text-xs text-gray-500 group-open:inline">{t.kwHide}</span>
       </summary>
 
       <div className="space-y-4 border-t border-gray-700 px-4 pb-4 pt-3">
-        <p className="text-xs text-gray-400">
-          These words are what the analysis looks for in chat. Matching ignores case and catches stretched
-          forms (<em>mdr</em> also finds <em>mdrrrr</em>, <em>haha</em> finds <em>hahahaha</em>). Your list is saved
-          in <strong className="text-gray-300">this browser only</strong>. Click <em>Re-analyze Chat</em> to apply
-          changes.
-        </p>
+        <p className="text-xs text-gray-400">{rich(t.kwIntro)}</p>
 
         {KEYWORD_CATEGORIES.map((cat) => {
           const cfg = TAG_CONFIG[cat];
@@ -557,7 +556,7 @@ function KeywordEditor({
             <div key={cat}>
               <div className="mb-1.5 flex items-center justify-between">
                 <span className={`text-xs font-semibold ${cfg.color}`}>
-                  {cfg.emoji} {cfg.label}{" "}
+                  {cfg.emoji} {t.tag[cat]}{" "}
                   <span className="font-normal text-gray-500">({keywords[cat].length})</span>
                 </span>
                 {!isDefault && (
@@ -566,7 +565,7 @@ function KeywordEditor({
                     onClick={() => onChange({ ...keywords, [cat]: [...DEFAULT_KEYWORDS[cat]] })}
                     className="text-[11px] text-gray-400 underline hover:text-gray-200"
                   >
-                    Reset {cfg.label}
+                    {t.kwReset(t.tag[cat])}
                   </button>
                 )}
               </div>
@@ -580,7 +579,7 @@ function KeywordEditor({
                     <button
                       type="button"
                       onClick={() => remove(cat, word)}
-                      aria-label={`Remove ${word}`}
+                      aria-label={t.kwRemove(word)}
                       className="opacity-60 hover:opacity-100"
                     >
                       &times;
@@ -588,7 +587,7 @@ function KeywordEditor({
                   </span>
                 ))}
                 {keywords[cat].length === 0 && (
-                  <span className="text-xs italic text-gray-500">No keywords: this category is turned off.</span>
+                  <span className="text-xs italic text-gray-500">{t.kwEmpty}</span>
                 )}
               </div>
               <form
@@ -603,14 +602,14 @@ function KeywordEditor({
                   value={drafts[cat]}
                   maxLength={KEYWORD_LIMITS.maxLength * 5}
                   onChange={(e) => setDrafts((d) => ({ ...d, [cat]: e.target.value }))}
-                  placeholder={`Add to ${cfg.label} (comma-separated)`}
+                  placeholder={t.kwAddPlaceholder(t.tag[cat])}
                   className="min-w-0 flex-1 rounded-md border border-gray-700 bg-gray-900 px-3 py-1.5 text-xs text-white placeholder-gray-500 focus:border-indigo-500 focus:outline-none"
                 />
                 <button
                   type="submit"
                   className="rounded-md border border-gray-600 bg-gray-700 px-3 py-1.5 text-xs font-semibold text-gray-200 hover:bg-gray-600"
                 >
-                  Add
+                  {t.kwAdd}
                 </button>
               </form>
             </div>
@@ -618,20 +617,19 @@ function KeywordEditor({
         })}
 
         <div className="rounded-md bg-gray-900/60 px-3 py-2 text-[11px] text-gray-500">
-          Always detected (Twitch system messages, not editable): {TAG_CONFIG.ban.emoji} bans
-          (&quot;has been banned&quot;) and {TAG_CONFIG.sub.emoji} sub gifts of 15 or more
-          (&quot;is gifting N&quot;).
+          {t.kwAlways} {TAG_CONFIG.ban.emoji} {t.kwAlwaysBans} {t.kwAnd} {TAG_CONFIG.sub.emoji}{" "}
+          {t.kwAlwaysSubs}.
         </div>
 
         {modified && (
           <button
             type="button"
             onClick={() => {
-              if (window.confirm("Restore all default keywords?")) onChange(sanitizeKeywords(DEFAULT_KEYWORDS));
+              if (window.confirm(t.kwConfirmResetAll)) onChange(sanitizeKeywords(DEFAULT_KEYWORDS));
             }}
             className="text-xs text-red-300 underline hover:text-red-200"
           >
-            Reset all keywords to default
+            {t.kwResetAll}
           </button>
         )}
       </div>
@@ -648,6 +646,7 @@ function ChatActivityChart({
   moments: HypeMoment[];
   onSeek?: (seconds: number) => void;
 }) {
+  const { t } = useI18n();
   const svgRef = useRef<SVGSVGElement>(null);
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
   const [dimensions, setDimensions] = useState({ width: 800, height: 200 });
@@ -824,7 +823,7 @@ function ChatActivityChart({
         >
           <span className="text-purple-300 font-mono">{formatTime(hovered.sec)}</span>
           {" "}&middot;{" "}
-          <span className="font-semibold">{hovered.count}</span> msgs/min
+          <span className="font-semibold">{hovered.count}</span> {t.msgsPerMin}
         </div>
       )}
     </div>
@@ -836,6 +835,15 @@ function ChatActivityChart({
 /* ------------------------------------------------------------------ */
 
 export default function Home() {
+  return (
+    <I18nProvider>
+      <HomeContent />
+    </I18nProvider>
+  );
+}
+
+function HomeContent() {
+  const { t } = useI18n();
   const [url, setUrl] = useState("");
 
   // Chat analysis state
@@ -902,8 +910,8 @@ export default function Home() {
       });
 
       if (!res.ok) {
-        const data = await res.json().catch(() => ({ error: "Unknown error" }));
-        throw new Error(data.error || `Server error ${res.status}`);
+        const data = await res.json().catch(() => ({ error: t.unknownError }));
+        throw new Error(data.error || t.serverError(res.status));
       }
 
       const data = await res.json();
@@ -913,7 +921,7 @@ export default function Home() {
       setAnalyzeStatus("done");
     } catch (err) {
       setAnalyzeStatus("error");
-      setAnalyzeError(err instanceof Error ? err.message : "Analysis failed");
+      setAnalyzeError(err instanceof Error ? err.message : t.analysisFailed);
     }
   }
 
@@ -973,9 +981,12 @@ export default function Home() {
       <div className="mx-auto max-w-7xl">
         {/* Header */}
         <div className="mb-6">
-          <h1 className="text-3xl font-bold tracking-tight text-white">Clipping de LeBarv__</h1>
+          <div className="flex items-start justify-between gap-4">
+            <h1 className="text-3xl font-bold tracking-tight text-white">Clipping de LeBarv__</h1>
+            <LanguageSwitch />
+          </div>
           <p className="mt-1 text-sm text-gray-400">
-            Designed by{" "}
+            {t.designedBy}{" "}
             <a
               href="https://www.twitch.tv/lebarv_pnj"
               target="_blank"
@@ -985,18 +996,13 @@ export default function Home() {
               LeBarv_PNJ__VKS
             </a>
           </p>
-          <p className="mt-2 text-xs text-gray-500">
-            🇫🇷 Si vous êtes déjà connecté à Twitch, vous pouvez accéder à la fonctionnalité de clip. Si vous ne voyez pas l&apos;option clip, veuillez vous connecter à Twitch dans une autre fenêtre.
-          </p>
-          <p className="mt-1 text-xs text-gray-500">
-            🇬🇧 If you are already logged in to Twitch, you can access the clip functionality. If you don&apos;t see the clip option, please make sure you log in to Twitch in another window.
-          </p>
+          <p className="mt-2 text-xs text-gray-500">{t.loginNote}</p>
         </div>
 
         {/* URL Input */}
         <div className="mb-4">
           <label htmlFor="url" className="mb-1 block text-sm font-medium text-gray-300">
-            Video URL
+            {t.videoUrl}
           </label>
           <input
             id="url"
@@ -1037,10 +1043,10 @@ export default function Home() {
                     <button
                       type="button"
                       onClick={() => stepMoment(-1)}
-                      title="Previous highlight (P)"
+                      title={t.prevTitle}
                       className="rounded-lg border border-gray-700 bg-gray-800 px-3 py-2.5 text-sm font-semibold text-gray-300 transition hover:border-gray-600 hover:bg-gray-700"
                     >
-                      &larr; Prev
+                      &larr; {t.prev}
                     </button>
                     <div className="flex min-w-0 flex-1 items-center justify-center gap-2 truncate rounded-lg bg-gray-900 px-3 py-2.5 text-sm text-gray-300">
                       {current && cfg ? (
@@ -1052,23 +1058,23 @@ export default function Home() {
                             className={`inline-flex items-center gap-0.5 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${cfg.color} ${cfg.bg} ${cfg.border}`}
                           >
                             <span>{cfg.emoji}</span>
-                            <span>{cfg.label}</span>
+                            <span>{t.tag[current.tag]}</span>
                           </span>
                           <span className="truncate font-medium text-white">
                             {formatTime(current.startSec)} &ndash; {formatTime(current.endSec)}
                           </span>
                         </>
                       ) : (
-                        <span className="text-gray-400">{moments.length} highlights found</span>
+                        <span className="text-gray-400">{t.highlightsFound(moments.length)}</span>
                       )}
                     </div>
                     <button
                       type="button"
                       onClick={() => stepMoment(1)}
-                      title="Next highlight (N)"
+                      title={t.nextTitle}
                       className="rounded-lg bg-purple-600 px-4 py-2.5 text-sm font-semibold text-white shadow transition hover:bg-purple-500"
                     >
-                      {selectedMomentIdx === null ? "First highlight" : "Next highlight"} &rarr;
+                      {selectedMomentIdx === null ? t.firstHighlight : t.nextHighlight} &rarr;
                     </button>
                   </div>
                 );
@@ -1096,7 +1102,7 @@ export default function Home() {
 
         {/* Chat Analysis & Highlights */}
         <div className="rounded-2xl bg-gray-900 p-6 shadow-xl">
-          <h2 className="mb-4 text-lg font-semibold text-white">Chat Analysis &amp; Highlights</h2>
+          <h2 className="mb-4 text-lg font-semibold text-white">{t.analysisTitle}</h2>
 
           {/* Detect Highlights button */}
           {isTwitch && (
@@ -1107,10 +1113,10 @@ export default function Home() {
               className="w-full rounded-lg border border-purple-500 bg-purple-500/10 px-4 py-2.5 text-sm font-semibold text-purple-300 transition hover:bg-purple-500/20 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-gray-900 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {analyzeStatus === "analyzing"
-                ? "Analyzing chat..."
+                ? t.analyzing
                 : analyzeStatus === "done"
-                  ? "Re-analyze Chat"
-                  : "Detect Highlights from Chat"}
+                  ? t.reanalyze
+                  : t.detect}
             </button>
           )}
 
@@ -1122,23 +1128,23 @@ export default function Home() {
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
               </svg>
-              Scanning chat for fun moments, hype, bans, subs &amp; donations...
+              {t.scanningChat}
             </div>
           )}
 
           {analyzeStatus === "error" && (
-            <p className="mt-4 text-sm text-red-400">Analysis error: {analyzeError}</p>
+            <p className="mt-4 text-sm text-red-400">{t.analysisError} {analyzeError}</p>
           )}
 
           {analyzeStatus === "idle" && !isTwitch && (
             <p className="text-sm text-gray-500">
-              Enter a Twitch VOD URL to detect highlights from chat replay.
+              {t.enterUrl}
             </p>
           )}
 
           {analyzeStatus === "idle" && isTwitch && (
             <p className="mt-4 text-sm text-gray-500">
-              Click &ldquo;Detect Highlights from Chat&rdquo; to scan chat replay and find the best moments.
+              {t.clickDetect}
             </p>
           )}
 
@@ -1146,8 +1152,7 @@ export default function Home() {
             <div className="mt-4 space-y-3">
               <div className="flex items-center justify-between">
                 <p className="text-xs text-gray-400">
-                  Found <span className="font-semibold text-purple-300">{moments.length}</span> highlight{moments.length !== 1 ? "s" : ""} from{" "}
-                  {totalMessages.toLocaleString()} chat messages. Click to jump to a moment:
+                  {rich(t.foundHighlights(moments.length, totalMessages.toLocaleString()), "font-semibold text-purple-300")}
                 </p>
                 {/* Tag distribution summary */}
                 <div className="flex items-center gap-1.5">
@@ -1159,7 +1164,7 @@ export default function Home() {
                       <span
                         key={tag}
                         className={`inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-medium ${cfg.color} ${cfg.bg} ${cfg.border} border`}
-                        title={`${count} ${cfg.label} highlight${count !== 1 ? "s" : ""}`}
+                        title={t.tagCountTitle(count, t.tag[tag])}
                       >
                         <span>{cfg.emoji}</span>
                         <span>{count}</span>
@@ -1195,11 +1200,11 @@ export default function Home() {
                             className={`inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[10px] font-semibold ${tagCfg.color} ${tagCfg.bg} ${tagCfg.border} border`}
                           >
                             <span>{tagCfg.emoji}</span>
-                            <span>{tagCfg.label}</span>
+                            <span>{t.tag[m.tag] ?? tagCfg.label}</span>
                           </span>
                         </div>
                         <span className="text-xs text-gray-400">
-                          {m.messageCount} msgs &middot; {m.messagesPerSec}/s
+                          {m.messageCount} {t.msgs} &middot; {m.messagesPerSec}/s
                         </span>
                       </div>
                       {/* Score bar with tag-specific gradient */}
@@ -1211,7 +1216,7 @@ export default function Home() {
                       </div>
                       {m.burstScore > 0 && (
                         <p className="mt-1 text-[10px] text-violet-400">
-                          Burst detected &middot; {m.burstScore.toFixed(1)} intensity
+                          {t.burstDetected(m.burstScore.toFixed(1))}
                         </p>
                       )}
                       {m.keywords && m.keywords.length > 0 && (
@@ -1222,7 +1227,7 @@ export default function Home() {
                               <span
                                 key={`${k.category}:${k.word}`}
                                 className={`rounded px-1.5 py-0.5 text-[10px] ${kc.color} ${kc.bg}`}
-                                title={`${k.count} messages with "${k.word}"`}
+                                title={t.keywordTitle(k.count, k.word)}
                               >
                                 {k.word} &times;{k.count}
                               </span>
@@ -1245,7 +1250,7 @@ export default function Home() {
           {/* Chat Activity Graph */}
           {analyzeStatus === "done" && timeline.length > 0 && (
             <div className="mt-5">
-              <p className="mb-2 text-xs font-medium text-gray-400">Chat activity (messages per minute)</p>
+              <p className="mb-2 text-xs font-medium text-gray-400">{t.chatActivity}</p>
               <div className="rounded-lg border border-gray-700 bg-gray-800/50 p-2">
                 <ChatActivityChart
                   timeline={timeline}
@@ -1267,7 +1272,7 @@ export default function Home() {
               </div>
               {moments.length > 0 && (
                 <p className="mt-1.5 text-[10px] text-gray-500">
-                  Colored bands = detected highlights. Click anywhere on the chart to jump to that moment.
+                  {t.chartHint}
                 </p>
               )}
             </div>
@@ -1275,7 +1280,7 @@ export default function Home() {
 
           {analyzeStatus === "done" && moments.length === 0 && (
             <p className="mt-4 text-sm text-gray-400">
-              No clear highlights found. The chat may be too quiet or evenly distributed.
+              {t.noHighlights}
             </p>
           )}
         </div>
@@ -1283,51 +1288,42 @@ export default function Home() {
         {/* How highlights are picked — explanation section */}
         {analyzeStatus === "done" && moments.length > 0 && (
           <div className="mt-6 rounded-2xl bg-gray-900 p-6 shadow-xl">
-            <h2 className="mb-4 text-lg font-semibold text-white">How are highlights picked?</h2>
+            <h2 className="mb-4 text-lg font-semibold text-white">{t.howTitle}</h2>
             <div className="space-y-4 text-sm text-gray-400 leading-relaxed">
-              <p>
-                Clipping de LeBarv__ scans every chat message from the VOD replay and picks the <strong className="text-gray-300">top 100 best moments</strong>, with up to 50 slots reserved for the funniest ones. Only the strongest signals make the cut:
-              </p>
+              <p>{rich(t.howIntro("Clipping de LeBarv__"))}</p>
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 {/* Step 1 */}
                 <div className="rounded-lg border border-gray-700 bg-gray-800/50 p-3">
-                  <p className="mb-1 text-xs font-semibold text-purple-300">1. Chat bucketing</p>
-                  <p className="text-xs text-gray-400">
-                    All chat messages are grouped into 30-second time windows. Each window tracks total messages, recognized emotes, and reaction keywords.
-                  </p>
+                  <p className="mb-1 text-xs font-semibold text-purple-300">{t.step1Title}</p>
+                  <p className="text-xs text-gray-400">{t.step1}</p>
                 </div>
                 {/* Step 2 */}
                 <div className="rounded-lg border border-gray-700 bg-gray-800/50 p-3">
-                  <p className="mb-1 text-xs font-semibold text-purple-300">2. Precise event detection</p>
+                  <p className="mb-1 text-xs font-semibold text-purple-300">{t.step2Title}</p>
                   <p className="text-xs text-gray-400">
-                    <span className="text-red-300">Bans</span> are detected from the exact <em>&quot;has been banned&quot;</em> system message.{" "}
-                    <span className="text-purple-300">Subs</span> are detected from <em>&quot;is gifting N&quot;</em> only when N &ge; 15.{" "}
-                    <span className="text-yellow-300">Fun</span> counts every laugh, including 7TV/BTTV emotes (KEKW, OMEGALUL, ICANT, xdd) and typed laughter (MDR, PTDR, JPP, LMAO, hahaha, 💀). <span className="text-orange-300">Hype</span> uses PogChamp, lets go, OMG, WTF.{" "}
-                    <span className="text-emerald-300">Donations</span> pick up Cheer bits and donation messages.
+                    <span className="text-red-300">{t.plural.ban}</span> {rich(t.step2Ban)}{" "}
+                    <span className="text-purple-300">{t.plural.sub}</span> {rich(t.step2Sub)}{" "}
+                    <span className="text-yellow-300">{t.plural.fun}</span> {rich(t.step2Fun)}{" "}
+                    <span className="text-orange-300">{t.plural.hype}</span> {rich(t.step2Hype)}{" "}
+                    <span className="text-emerald-300">{t.plural.donation}</span> {rich(t.step2Don)}
                   </p>
                 </div>
                 {/* Step 3 */}
                 <div className="rounded-lg border border-gray-700 bg-gray-800/50 p-3">
-                  <p className="mb-1 text-xs font-semibold text-purple-300">3. Spike detection</p>
-                  <p className="text-xs text-gray-400">
-                    A sliding window merges adjacent buckets, then a velocity score rewards sudden spikes &mdash; if chat goes from quiet to wild, that moment gets a big boost (up to 2.5x).
-                  </p>
+                  <p className="mb-1 text-xs font-semibold text-purple-300">{t.step3Title}</p>
+                  <p className="text-xs text-gray-400">{t.step3}</p>
                 </div>
                 {/* Step 4 */}
                 <div className="rounded-lg border border-gray-700 bg-gray-800/50 p-3">
-                  <p className="mb-1 text-xs font-semibold text-purple-300">4. Strict threshold</p>
-                  <p className="text-xs text-gray-400">
-                    Only moments well above the stream&apos;s average activity are kept (mean + 1&times; standard deviation). This filters out ordinary chatter and keeps only the real peaks.
-                  </p>
+                  <p className="mb-1 text-xs font-semibold text-purple-300">{t.step4Title}</p>
+                  <p className="text-xs text-gray-400">{t.step4}</p>
                 </div>
               </div>
 
               <div className="rounded-lg border border-gray-700 bg-gray-800/50 p-3">
-                <p className="mb-1 text-xs font-semibold text-purple-300">5. Funny moments first, then top 100</p>
-                <p className="text-xs text-gray-400">
-                  Funny moments are ranked by how many <em>different</em> chatters laughed, how much of chat was laughing, and how suddenly it started. The best ones fill up to 50 slots, then the rest are filled by composite score (reactions + emotes + velocity + diversity), with a 60-second gap between clips. Each clip is centered on the reaction peak: it starts 20 seconds before chat explodes, to catch the setup and the punchline, and ends 10 seconds after, to keep the streamer&apos;s reaction.
-                </p>
+                <p className="mb-1 text-xs font-semibold text-purple-300">{t.step5Title}</p>
+                <p className="text-xs text-gray-400">{rich(t.step5)}</p>
               </div>
 
               <div className="flex flex-wrap gap-3 pt-1">
@@ -1337,15 +1333,9 @@ export default function Home() {
                     <div key={tag} className="flex items-center gap-1.5">
                       <span className={`inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[10px] font-semibold ${cfg.color} ${cfg.bg} ${cfg.border} border`}>
                         <span>{cfg.emoji}</span>
-                        <span>{cfg.label}</span>
+                        <span>{t.tag[tag]}</span>
                       </span>
-                      <span className="text-[10px] text-gray-500">
-                        {tag === "fun" && "Many chatters laughing (see Detection keywords)"}
-                        {tag === "hype" && "PogChamp, lets go, OMG, WTF... (editable)"}
-                        {tag === "ban" && "Exact \"has been banned\" system messages"}
-                        {tag === "sub" && "Mass gifting events (15+ subs)"}
-                        {tag === "donation" && "Cheer bits, donations, tips (editable)"}
-                      </span>
+                      <span className="text-[10px] text-gray-500">{t.legend[tag]}</span>
                     </div>
                   );
                 })}
@@ -1361,10 +1351,10 @@ export default function Home() {
 
         {/* Footer */}
         <p className="mt-6 text-center text-xs text-gray-500">
-          Paste a Twitch VOD URL to preview the video, browse chat replay, and detect highlight moments from chat activity.
+          {t.footerHint}
         </p>
         <p className="mt-4 text-center text-xs text-gray-600">
-          Developed by{" "}
+          {t.developedBy}{" "}
           <a
             href="https://www.twitch.tv/lebarv_pnj"
             target="_blank"
