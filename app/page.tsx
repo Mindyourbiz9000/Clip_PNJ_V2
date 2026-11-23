@@ -782,7 +782,7 @@ export default function Home() {
               rel="noopener noreferrer"
               className="text-purple-400 hover:text-purple-300 underline"
             >
-              LeBarv_PNJ
+              LeBarv_PNJ__VKS
             </a>
           </p>
           <p className="mt-2 text-xs text-gray-500">
@@ -1107,7 +1107,7 @@ export default function Home() {
             rel="noopener noreferrer"
             className="text-purple-400 hover:text-purple-300 underline"
           >
-            LeBarv_PNJ
+            LeBarv_PNJ__VKS
           </a>
         </p>
       </div>
