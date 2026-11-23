@@ -784,16 +784,6 @@ export default function Home() {
             >
               LeBarv_PNJ
             </a>
-            , from{" "}
-            <a
-              href="https://www.twitch.tv/inespnj"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-purple-400 hover:text-purple-300 underline"
-            >
-              InesPNJ
-            </a>
-            &apos;s community
           </p>
           <p className="mt-2 text-xs text-gray-500">
             🇫🇷 Si vous êtes déjà connecté à Twitch, vous pouvez accéder à la fonctionnalité de clip. Si vous ne voyez pas l&apos;option clip, veuillez vous connecter à Twitch dans une autre fenêtre.
