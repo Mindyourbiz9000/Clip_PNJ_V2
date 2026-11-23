@@ -795,15 +795,15 @@ export function findHypeMoments(
     const b = entry.merged;
     const tag = forcedTag ?? resolveDominantTag(b, entry.burstScore, entry.spamScore);
 
-    // Center the clip on the reaction peak. Chat reacts AFTER the moment,
-    // so the clip starts ~30s before the peak (setup + punchline) and ends
-    // right at the peak (clip length is 30s).
+    // Chat reacts AFTER the moment (stream latency + typing time), so the
+    // clip starts 40s before the reaction peak (setup + punchline) and ends
+    // 10s after it (the streamer's own reaction).
     const peak =
       tag === "fun"
         ? peakTime(b.laughTimestamps, entry.key + windowSec / 2)
         : peakTime(b.messageTimestamps, entry.key + windowSec / 2);
-    const start = Math.max(0, Math.round(peak - 30));
-    const end = start + clipDuration;
+    const start = Math.max(0, Math.round(peak - 40));
+    const end = Math.round(peak + 10);
 
     const tooClose = usedRanges.some(
       ([s, e]) => start < e + minGap && end > s - minGap
