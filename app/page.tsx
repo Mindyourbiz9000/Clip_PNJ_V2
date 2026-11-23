@@ -21,6 +21,7 @@ type HighlightTag = "fun" | "hype" | "ban" | "sub" | "donation";
 interface HypeMoment {
   startSec: number;
   endSec: number;
+  peakSec?: number;
   score: number;
   messagesPerSec: number;
   messageCount: number;
@@ -637,6 +638,205 @@ function KeywordEditor({
   );
 }
 
+/* ------------------------------------------------------------------ */
+/*  Moment context panel (free, rule-based: chat + screenshots)        */
+/* ------------------------------------------------------------------ */
+
+interface ContextMessage {
+  offsetSeconds: number;
+  author: string;
+  text: string;
+  isPeak?: boolean;
+}
+
+interface MomentContext {
+  peakSec: number;
+  before: ContextMessage[];
+  peak: ContextMessage | null;
+  after: ContextMessage[];
+  phrase: string | null;
+  phraseAuthors: number;
+  score: number;
+  verdict: "strong" | "likely" | "doubtful";
+  reasons: Array<{ code: string; positive: boolean; values: Record<string, number | string> }>;
+}
+
+type Loadable<T> = { status: "loading" } | { status: "done"; data: T } | { status: "error"; error: string };
+
+interface Frame {
+  sec: number;
+  data: string;
+}
+
+const VERDICT_STYLE: Record<MomentContext["verdict"], string> = {
+  strong: "border-emerald-500/50 bg-emerald-500/10 text-emerald-300",
+  likely: "border-yellow-500/50 bg-yellow-500/10 text-yellow-300",
+  doubtful: "border-red-500/50 bg-red-500/10 text-red-300",
+};
+
+function MomentContextPanel({
+  moment,
+  index,
+  total,
+  ctx,
+  frames,
+  onSeek,
+  onClose,
+}: {
+  moment: HypeMoment;
+  index: number;
+  total: number;
+  ctx: Loadable<MomentContext> | undefined;
+  frames: Loadable<Frame[]> | undefined;
+  onSeek: (sec: number) => void;
+  onClose: () => void;
+}) {
+  const { t } = useI18n();
+  const cfg = TAG_CONFIG[moment.tag] ?? TAG_CONFIG.hype;
+
+  // Title: the phrase chat repeated, otherwise the top keywords
+  let title = t.ctxMomentTitle[moment.tag];
+  if (ctx?.status === "done" && ctx.data.phrase) {
+    title += ` : ${t.ctxQuote(ctx.data.phrase)}`;
+  } else if (moment.keywords && moment.keywords.length > 0) {
+    title += ` : ${moment.keywords.slice(0, 3).map((k) => k.word).join(", ")}`;
+  }
+
+  const Spinner = () => (
+    <svg className="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none">
+      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+    </svg>
+  );
+
+  const MessageRow = ({ m }: { m: ContextMessage }) => (
+    <button
+      type="button"
+      onClick={() => onSeek(Math.max(0, m.offsetSeconds - 3))}
+      className={`flex w-full items-start gap-2 rounded px-2 py-1 text-left text-xs transition hover:bg-gray-700/60 ${
+        m.isPeak ? "bg-purple-500/20 ring-1 ring-purple-500/60" : ""
+      }`}
+    >
+      <span className="shrink-0 font-mono text-gray-500">{formatChatTime(Math.round(m.offsetSeconds))}</span>
+      <span className="min-w-0">
+        <span className="font-semibold text-purple-400">{m.author}:</span>{" "}
+        <span className="break-words text-gray-200">{m.text}</span>
+        {m.isPeak && (
+          <span className="ml-1.5 rounded bg-purple-600 px-1 py-0.5 text-[9px] font-bold uppercase text-white">
+            {t.ctxPeak}
+          </span>
+        )}
+      </span>
+    </button>
+  );
+
+  return (
+    <section className="mb-6 rounded-2xl border border-gray-700 bg-gray-900 p-4 shadow-xl sm:p-5">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-[11px] uppercase tracking-wide text-gray-500">
+            {t.ctxTitle} &middot; {index + 1}/{total} &middot; {formatTime(moment.startSec)} &ndash; {formatTime(moment.endSec)}
+          </p>
+          <h3 className={`mt-0.5 text-lg font-bold ${cfg.color}`}>
+            {cfg.emoji} {title}
+          </h3>
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          className="shrink-0 rounded-md border border-gray-700 px-2.5 py-1 text-xs text-gray-300 hover:bg-gray-800"
+        >
+          {t.ctxClose}
+        </button>
+      </div>
+
+      {/* Verdict */}
+      <div className="mt-3">
+        {!ctx || ctx.status === "loading" ? (
+          <p className="flex items-center gap-2 text-sm text-purple-300">
+            <Spinner /> {t.ctxLoadingChat}
+          </p>
+        ) : ctx.status === "error" ? (
+          <p className="text-sm text-red-400">
+            {t.ctxChatError} {ctx.error}
+          </p>
+        ) : (
+          <div className={`rounded-lg border px-3 py-2 ${VERDICT_STYLE[ctx.data.verdict]}`}>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="text-sm font-semibold">{t.ctxVerdict[ctx.data.verdict]}</span>
+              <span className="text-xs opacity-80">{t.ctxScore(ctx.data.score)}</span>
+            </div>
+            {ctx.data.reasons.length > 0 && (
+              <ul className="mt-1.5 space-y-0.5 text-xs text-gray-300">
+                {ctx.data.reasons.map((r, i) => (
+                  <li key={i}>
+                    <span className={r.positive ? "text-emerald-400" : "text-red-400"}>{r.positive ? "+" : "−"}</span>{" "}
+                    {t.ctxReason[r.code]?.(r.values) ?? r.code}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Screenshots */}
+      <div className="mt-4">
+        <p className="mb-1.5 text-xs font-semibold text-gray-300">{t.ctxScreens}</p>
+        {!frames || frames.status === "loading" ? (
+          <p className="flex items-center gap-2 text-xs text-purple-300">
+            <Spinner /> {t.ctxLoadingFrames}
+          </p>
+        ) : frames.status === "error" ? (
+          <p className="text-xs text-red-400">
+            {t.ctxFramesError} {frames.error}
+          </p>
+        ) : (
+          <>
+            <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-5">
+              {frames.data.map((f) => (
+                <button
+                  key={f.sec}
+                  type="button"
+                  onClick={() => onSeek(f.sec)}
+                  className="group relative overflow-hidden rounded-md border border-gray-700 hover:border-purple-500"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={f.data} alt={formatTime(f.sec)} className="aspect-video w-full object-cover" />
+                  <span className="absolute bottom-0.5 left-0.5 rounded bg-black/70 px-1 font-mono text-[10px] text-white">
+                    {formatChatTime(f.sec)}
+                  </span>
+                </button>
+              ))}
+            </div>
+            <p className="mt-1 text-[10px] text-gray-500">{t.ctxScreensHint}</p>
+          </>
+        )}
+      </div>
+
+      {/* Chat around the peak */}
+      {ctx?.status === "done" && (
+        <div className="mt-4">
+          <p className="mb-1.5 text-xs font-semibold text-gray-300">{t.ctxChat}</p>
+          {ctx.data.peak ? (
+            <div className="max-h-96 space-y-0.5 overflow-y-auto rounded-lg border border-gray-800 bg-gray-950/40 p-1.5">
+              {ctx.data.before.map((m, i) => (
+                <MessageRow key={`b${i}`} m={m} />
+              ))}
+              <MessageRow m={ctx.data.peak} />
+              {ctx.data.after.map((m, i) => (
+                <MessageRow key={`a${i}`} m={m} />
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-gray-500">{t.ctxNoMessages}</p>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}
+
 function ChatActivityChart({
   timeline,
   moments,
@@ -873,6 +1073,11 @@ function HomeContent() {
   const [timeline, setTimeline] = useState<TimelinePoint[]>([]);
   const [selectedMomentIdx, setSelectedMomentIdx] = useState<number | null>(null);
 
+  // "Context" panel: which moment is open, and results cached per moment
+  const [contextIdx, setContextIdx] = useState<number | null>(null);
+  const [contexts, setContexts] = useState<Record<number, Loadable<MomentContext>>>({});
+  const [framesByMoment, setFramesByMoment] = useState<Record<number, Loadable<Frame[]>>>({});
+
   // Highlight detection counter (persisted on server)
   const [analyzeCount, setAnalyzeCount] = useState(0);
   useEffect(() => {
@@ -895,6 +1100,9 @@ function HomeContent() {
     setMoments([]);
     setTimeline([]);
     setSelectedMomentIdx(null);
+    setContextIdx(null);
+    setContexts({});
+    setFramesByMoment({});
 
     // Increment the global counter
     fetch("/api/counter", { method: "POST" })
@@ -951,6 +1159,56 @@ function HomeContent() {
     }
   }
 
+  function seekTo(sec: number) {
+    if (!playerRef.current) return;
+    try {
+      playerRef.current.seek(sec);
+      playerRef.current.play();
+    } catch {
+      // Player might not support seek yet
+    }
+  }
+
+  /** Opens the context panel of a moment: chat around the peak + screenshots. */
+  function openContext(index: number, scrollToTop = true) {
+    const m = moments[index];
+    if (!m) return;
+    selectMoment(m, index, scrollToTop);
+    setContextIdx(index);
+    const peakSec = m.peakSec ?? Math.max(0, m.endSec - 10);
+
+    if (!contexts[index] || contexts[index].status === "error") {
+      setContexts((c) => ({ ...c, [index]: { status: "loading" } }));
+      fetch("/api/context", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url, peakSec, keywords }),
+      })
+        .then(async (res) => {
+          const data = await res.json().catch(() => ({ error: t.unknownError }));
+          if (!res.ok) throw new Error(data.error || t.serverError(res.status));
+          setContexts((c) => ({ ...c, [index]: { status: "done", data } }));
+        })
+        .catch((err) =>
+          setContexts((c) => ({ ...c, [index]: { status: "error", error: err instanceof Error ? err.message : String(err) } }))
+        );
+    }
+
+    if (!framesByMoment[index] || framesByMoment[index].status === "error") {
+      setFramesByMoment((f) => ({ ...f, [index]: { status: "loading" } }));
+      const params = new URLSearchParams({ url, start: String(m.startSec), end: String(m.endSec) });
+      fetch(`/api/frames?${params}`)
+        .then(async (res) => {
+          const data = await res.json().catch(() => ({ error: t.unknownError }));
+          if (!res.ok) throw new Error(data.error || t.serverError(res.status));
+          setFramesByMoment((f) => ({ ...f, [index]: { status: "done", data: data.frames ?? [] } }));
+        })
+        .catch((err) =>
+          setFramesByMoment((f) => ({ ...f, [index]: { status: "error", error: err instanceof Error ? err.message : String(err) } }))
+        );
+    }
+  }
+
   /** Jump to the previous / next highlight (from the one currently selected). */
   function stepMoment(delta: 1 | -1) {
     if (moments.length === 0) return;
@@ -958,7 +1216,10 @@ function HomeContent() {
       selectedMomentIdx === null
         ? delta === 1 ? 0 : moments.length - 1
         : (selectedMomentIdx + delta + moments.length) % moments.length;
-    selectMoment(moments[next], next, false); // stay where we are: the buttons are under the video
+    // Stay where we are: the buttons are under the video.
+    // If the context panel is open, it follows to the next moment.
+    if (contextIdx !== null) openContext(next, false);
+    else selectMoment(moments[next], next, false);
   }
 
   // Keyboard shortcuts: N = next highlight, P = previous (ignored while typing)
@@ -1068,6 +1329,23 @@ function HomeContent() {
                         <span className="text-gray-400">{t.highlightsFound(moments.length)}</span>
                       )}
                     </div>
+                    {selectedMomentIdx !== null && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          contextIdx === selectedMomentIdx ? setContextIdx(null) : openContext(selectedMomentIdx)
+                        }
+                        title={t.ctxButtonTitle}
+                        aria-pressed={contextIdx === selectedMomentIdx}
+                        className={`shrink-0 rounded-lg border px-3 py-2.5 text-sm font-semibold transition ${
+                          contextIdx === selectedMomentIdx
+                            ? "border-purple-500 bg-purple-500/20 text-purple-200"
+                            : "border-gray-700 bg-gray-800 text-gray-200 hover:border-gray-600 hover:bg-gray-700"
+                        }`}
+                      >
+                        {t.ctxButton}
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={() => stepMoment(1)}
@@ -1098,6 +1376,22 @@ function HomeContent() {
               />
             </div>
           </div>
+        )}
+
+        {/* Context of the selected moment */}
+        {isTwitch && contextIdx !== null && moments[contextIdx] && (
+          <MomentContextPanel
+            moment={moments[contextIdx]}
+            index={contextIdx}
+            total={moments.length}
+            ctx={contexts[contextIdx]}
+            frames={framesByMoment[contextIdx]}
+            onSeek={(sec) => {
+              seekTo(sec);
+              requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: "smooth" }));
+            }}
+            onClose={() => setContextIdx(null)}
+          />
         )}
 
         {/* Chat Analysis & Highlights */}
@@ -1179,11 +1473,19 @@ function HomeContent() {
                   const isSelected = selectedMomentIdx === i;
                   const tagCfg = TAG_CONFIG[m.tag] ?? TAG_CONFIG.hype;
                   return (
-                    <button
+                    <div
                       key={i}
-                      type="button"
+                      role="button"
+                      tabIndex={0}
                       onClick={() => selectMoment(m, i)}
-                      className={`rounded-lg border px-3 py-2 text-left transition ${
+                      onKeyDown={(e) => {
+                        if (e.target !== e.currentTarget) return;
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          selectMoment(m, i);
+                        }
+                      }}
+                      className={`cursor-pointer rounded-lg border px-3 py-2 text-left transition ${
                         isSelected
                           ? "border-indigo-500 bg-indigo-500/20"
                           : "border-gray-700 bg-gray-800 hover:border-gray-600"
@@ -1240,7 +1542,18 @@ function HomeContent() {
                           {m.sampleMessages.slice(0, 3).join(" · ")}
                         </p>
                       )}
-                    </button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openContext(i);
+                        }}
+                        title={t.ctxButtonTitle}
+                        className="mt-2 rounded-md border border-gray-600 bg-gray-900/60 px-2 py-1 text-[11px] font-semibold text-gray-200 hover:border-purple-500 hover:text-white"
+                      >
+                        {t.ctxButton}
+                      </button>
+                    </div>
                   );
                 })}
               </div>

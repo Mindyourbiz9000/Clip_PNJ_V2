@@ -19,7 +19,7 @@ export function isSupportedPlatformUrl(url: string): boolean {
  * Uses yt-dlp to extract the direct stream URL from a platform URL.
  * Returns the best quality URL that FFmpeg can consume directly.
  */
-export async function resolveStreamUrl(url: string): Promise<string> {
+export async function resolveStreamUrl(url: string, format = "best"): Promise<string> {
   const timeoutMs = 30_000;
 
   return new Promise((resolve, reject) => {
@@ -27,7 +27,7 @@ export async function resolveStreamUrl(url: string): Promise<string> {
       "--get-url",          // output just the direct URL
       "--no-warnings",
       "--no-playlist",
-      "-f", "best",         // best single format
+      "-f", format,         // "best" for clips, a small format for screenshots
       url,
     ], {
       stdio: ["ignore", "pipe", "pipe"],

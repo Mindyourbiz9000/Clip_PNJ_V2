@@ -333,6 +333,8 @@ export interface HypeMoment {
   startSec: number;
   /** End of the clip window in seconds */
   endSec: number;
+  /** Second when chat reacted the hardest (used for the context view) */
+  peakSec: number;
   /** Composite hype score */
   score: number;
   /** Messages per second in this window */
@@ -659,6 +661,7 @@ export function findHypeMoments(
     selected.push({
       startSec: start,
       endSec: end,
+      peakSec: Math.round(peak),
       score: Math.round((tag === "fun" ? Math.max(entry.score, entry.funScore) : entry.score) * 10) / 10,
       messagesPerSec: Math.round((b.messageCount / windowSec) * 10) / 10,
       messageCount: b.messageCount,

@@ -120,9 +120,48 @@ const en = {
   kwAnd: "and",
   kwResetAll: "Reset all keywords to default",
   kwConfirmResetAll: "Restore all default keywords?",
+
+  // Context of a moment (free, rule-based)
+  ctxButton: "🔍 Context",
+  ctxButtonTitle: "Understand this moment: chat around it, screenshots and a verdict",
+  ctxTitle: "Context of the moment",
+  ctxClose: "Close",
+  ctxLoadingChat: "Reading the chat around the moment...",
+  ctxLoadingFrames: "Taking screenshots (10 to 20 seconds)...",
+  ctxChatError: "Could not read the chat:",
+  ctxFramesError: "Could not take screenshots:",
+  ctxScreens: "Screenshots of the scene",
+  ctxScreensHint: "Click a screenshot to jump to that second.",
+  ctxChat: "Chat around the peak (10 messages before, 10 after)",
+  ctxPeak: "peak",
+  ctxNoMessages: "No chat messages around this moment.",
+  ctxWhy: "Why this verdict?",
+  ctxScore: (n: number) => `Score ${n}/100`,
+  ctxVerdict: {
+    strong: "✅ Real stream moment",
+    likely: "🤔 Probably a stream moment",
+    doubtful: "⚠️ Doubtful: maybe just chat talking",
+  } as Record<"strong" | "likely" | "doubtful", string>,
+  ctxMomentTitle: { fun: "Laugh", hype: "Hype", ban: "Ban", sub: "Sub gifts", donation: "Donation" } as Record<Tag, string>,
+  ctxQuote: (phrase: string) => `“${phrase}”`,
+  ctxReason: {
+    spike: (v: Record<string, number | string>) => `Chat suddenly sped up: ${v.now} msg/s vs ${v.before} before (×${v.ratio}).`,
+    noSpike: (v: Record<string, number | string>) => `No real acceleration of chat (×${v.ratio}).`,
+    manyPeople: (v: Record<string, number | string>) => `${v.n} different people reacted at the same time.`,
+    fewPeople: (v: Record<string, number | string>) => `Only ${v.n} people wrote the ${v.msgs} messages.`,
+    reactions: (v: Record<string, number | string>) => `${v.pct}% of messages are reactions (laughs, hype...).`,
+    fewReactions: (v: Record<string, number | string>) => `Only ${v.pct}% of messages are reactions.`,
+    shortMessages: (v: Record<string, number | string>) => `${v.pct}% short messages: instant reactions to the screen.`,
+    conversation: (v: Record<string, number | string>) => `${v.pct}% of messages are @replies between chatters: looks like a conversation.`,
+    sameTarget: (v: Record<string, number | string>) => `${v.n} people talk to @${v.name} (often the streamer).`,
+    repeatedPhrase: (v: Record<string, number | string>) => `${v.n} people wrote “${v.phrase}”.`,
+  } as Record<string, (v: Record<string, number | string>) => string>,
 };
 
 export type Strings = typeof en;
+
+/** French decimal comma: 0.8 -> "0,8". */
+const frNum = (x: number | string) => String(x).replace(".", ",");
 
 const fr: Strings = {
   tag: { fun: "Drôle", hype: "Hype", ban: "Ban", sub: "Sub", donation: "Don" },
@@ -231,6 +270,42 @@ const fr: Strings = {
   kwAnd: "et",
   kwResetAll: "Remettre tous les mots-clés par défaut",
   kwConfirmResetAll: "Remettre tous les mots-clés par défaut ?",
+
+  ctxButton: "🔍 Contexte",
+  ctxButtonTitle: "Comprendre ce moment : le chat autour, des captures d'écran et un verdict",
+  ctxTitle: "Contexte du moment",
+  ctxClose: "Fermer",
+  ctxLoadingChat: "Lecture du chat autour du moment...",
+  ctxLoadingFrames: "Captures d'écran en cours (10 à 20 secondes)...",
+  ctxChatError: "Impossible de lire le chat :",
+  ctxFramesError: "Impossible de prendre les captures :",
+  ctxScreens: "Captures d'écran de la scène",
+  ctxScreensHint: "Cliquez sur une capture pour aller à cette seconde.",
+  ctxChat: "Chat autour du pic (10 messages avant, 10 après)",
+  ctxPeak: "pic",
+  ctxNoMessages: "Aucun message dans le chat autour de ce moment.",
+  ctxWhy: "Pourquoi ce verdict ?",
+  ctxScore: (n) => `Score ${n}/100`,
+  ctxVerdict: {
+    strong: "✅ Vrai moment du stream",
+    likely: "🤔 Probablement un moment du stream",
+    doubtful: "⚠️ Douteux : sans doute une discussion dans le chat",
+  },
+  ctxMomentTitle: { fun: "Fou rire", hype: "Hype", ban: "Ban", sub: "Pluie de subs", donation: "Don" },
+  ctxQuote: (phrase) => `« ${phrase} »`,
+  ctxReason: {
+    spike: (v) =>
+      `Le chat s'est soudain accéléré : ${frNum(v.now)} msg/s contre ${frNum(v.before)} avant (×${frNum(v.ratio)}).`,
+    noSpike: (v) => `Pas de vraie accélération du chat (×${frNum(v.ratio)}).`,
+    manyPeople: (v) => `${v.n} personnes différentes ont réagi en même temps.`,
+    fewPeople: (v) => `Seulement ${v.n} personnes ont écrit les ${v.msgs} messages.`,
+    reactions: (v) => `${v.pct} % des messages sont des réactions (rires, hype...).`,
+    fewReactions: (v) => `Seulement ${v.pct} % des messages sont des réactions.`,
+    shortMessages: (v) => `${v.pct} % de messages courts : des réactions instantanées à l'écran.`,
+    conversation: (v) => `${v.pct} % des messages sont des @réponses entre chatteurs : ça ressemble à une discussion.`,
+    sameTarget: (v) => `${v.n} personnes s'adressent à @${v.name} (souvent le streamer).`,
+    repeatedPhrase: (v) => `${v.n} personnes ont écrit « ${v.phrase} ».`,
+  },
 };
 
 const STRINGS: Record<Lang, Strings> = { en, fr };
