@@ -1133,7 +1133,7 @@ export default function Home() {
               <div className="rounded-lg border border-gray-700 bg-gray-800/50 p-3">
                 <p className="mb-1 text-xs font-semibold text-purple-300">5. Funny moments first, then top 100</p>
                 <p className="text-xs text-gray-400">
-                  Funny moments are ranked by how many <em>different</em> chatters laughed, how much of chat was laughing, and how suddenly it started. The best ones fill up to 50 slots, then the rest are filled by composite score (reactions + emotes + velocity + diversity), with a 60-second gap between clips. Each clip is centered on the reaction peak: it starts 40 seconds before chat explodes, to catch the setup and the punchline, and ends 10 seconds after, to keep the streamer&apos;s reaction.
+                  Funny moments are ranked by how many <em>different</em> chatters laughed, how much of chat was laughing, and how suddenly it started. The best ones fill up to 50 slots, then the rest are filled by composite score (reactions + emotes + velocity + diversity), with a 60-second gap between clips. Each clip is centered on the reaction peak: it starts 20 seconds before chat explodes, to catch the setup and the punchline, and ends 10 seconds after, to keep the streamer&apos;s reaction.
                 </p>
               </div>
 
