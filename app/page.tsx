@@ -742,7 +742,7 @@ export default function Home() {
     }
   }
 
-  function selectMoment(moment: HypeMoment, index: number) {
+  function selectMoment(moment: HypeMoment, index: number, scrollToTop = true) {
     // Remove focus from the clicked button so the browser doesn't
     // try to keep the focused element visible.
     (document.activeElement as HTMLElement)?.blur();
@@ -751,9 +751,11 @@ export default function Home() {
     // Wait for React to finish re-rendering (the selected highlight
     // changes style) before scrolling, so the browser's layout-driven
     // scroll doesn't fight ours.
-    requestAnimationFrame(() => {
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    });
+    if (scrollToTop) {
+      requestAnimationFrame(() => {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      });
+    }
 
     // Seek the embedded player to this moment
     if (playerRef.current) {
@@ -765,6 +767,29 @@ export default function Home() {
       }
     }
   }
+
+  /** Jump to the previous / next highlight (from the one currently selected). */
+  function stepMoment(delta: 1 | -1) {
+    if (moments.length === 0) return;
+    const next =
+      selectedMomentIdx === null
+        ? delta === 1 ? 0 : moments.length - 1
+        : (selectedMomentIdx + delta + moments.length) % moments.length;
+    selectMoment(moments[next], next, false); // stay where we are: the buttons are under the video
+  }
+
+  // Keyboard shortcuts: N = next highlight, P = previous (ignored while typing)
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      const el = e.target as HTMLElement | null;
+      if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable)) return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.key === "n" || e.key === "N") stepMoment(1);
+      if (e.key === "p" || e.key === "P") stepMoment(-1);
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  });
 
   const maxScore = moments.length > 0 ? Math.max(...moments.map((m) => m.score)) : 1;
 
@@ -827,6 +852,52 @@ export default function Home() {
                 onTimeUpdate={setCurrentTime}
                 playerRef={playerRef}
               />
+
+              {/* Highlight navigation, right under the video */}
+              {moments.length > 0 && (() => {
+                const current = selectedMomentIdx !== null ? moments[selectedMomentIdx] : null;
+                const cfg = current ? (TAG_CONFIG[current.tag] ?? TAG_CONFIG.hype) : null;
+                return (
+                  <div className="mt-3 flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => stepMoment(-1)}
+                      title="Previous highlight (P)"
+                      className="rounded-lg border border-gray-700 bg-gray-800 px-3 py-2.5 text-sm font-semibold text-gray-300 transition hover:border-gray-600 hover:bg-gray-700"
+                    >
+                      &larr; Prev
+                    </button>
+                    <div className="flex min-w-0 flex-1 items-center justify-center gap-2 truncate rounded-lg bg-gray-900 px-3 py-2.5 text-sm text-gray-300">
+                      {current && cfg ? (
+                        <>
+                          <span className="font-mono text-xs text-gray-500">
+                            {selectedMomentIdx! + 1}/{moments.length}
+                          </span>
+                          <span
+                            className={`inline-flex items-center gap-0.5 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${cfg.color} ${cfg.bg} ${cfg.border}`}
+                          >
+                            <span>{cfg.emoji}</span>
+                            <span>{cfg.label}</span>
+                          </span>
+                          <span className="truncate font-medium text-white">
+                            {formatTime(current.startSec)} &ndash; {formatTime(current.endSec)}
+                          </span>
+                        </>
+                      ) : (
+                        <span className="text-gray-400">{moments.length} highlights found</span>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => stepMoment(1)}
+                      title="Next highlight (N)"
+                      className="rounded-lg bg-purple-600 px-4 py-2.5 text-sm font-semibold text-white shadow transition hover:bg-purple-500"
+                    >
+                      {selectedMomentIdx === null ? "First highlight" : "Next highlight"} &rarr;
+                    </button>
+                  </div>
+                );
+              })()}
             </div>
             {/* Chat Replay Panel - 1/3 width, matches video height */}
             <div className="h-[400px] lg:h-auto lg:w-1/3 lg:aspect-video">
