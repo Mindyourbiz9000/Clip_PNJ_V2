@@ -773,7 +773,7 @@ export default function Home() {
       <div className="mx-auto max-w-7xl">
         {/* Header */}
         <div className="mb-6">
-          <h1 className="text-3xl font-bold tracking-tight text-white">Clip_PNJ</h1>
+          <h1 className="text-3xl font-bold tracking-tight text-white">Clipping de LeBarv__</h1>
           <p className="mt-1 text-sm text-gray-400">
             Designed by{" "}
             <a
@@ -1032,7 +1032,7 @@ export default function Home() {
             <h2 className="mb-4 text-lg font-semibold text-white">How are highlights picked?</h2>
             <div className="space-y-4 text-sm text-gray-400 leading-relaxed">
               <p>
-                Clip_PNJ scans every chat message from the VOD replay and picks the <strong className="text-gray-300">top 15 absolute best moments</strong>. Only the strongest signals make the cut:
+                Clipping de LeBarv__ scans every chat message from the VOD replay and picks the <strong className="text-gray-300">top 15 absolute best moments</strong>. Only the strongest signals make the cut:
               </p>
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

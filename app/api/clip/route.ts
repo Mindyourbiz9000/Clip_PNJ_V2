@@ -116,7 +116,7 @@ export async function POST(req: NextRequest) {
       status: 200,
       headers: {
         "Content-Type": "video/mp4",
-        "Content-Disposition": 'attachment; filename="quickclip.mp4"',
+        "Content-Disposition": 'attachment; filename="clipping-lebarv.mp4"',
         "Content-Length": fileStat.size.toString(),
       },
     });
