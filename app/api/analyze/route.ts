@@ -83,9 +83,9 @@ export async function POST(req: NextRequest) {
     windowSec: 30,
     clipDurationSec: 30,
     minGapSec: 60,
-    thresholdFactor: 1.5,
-    maxHighlights: 50, // Top 50 best highlights
-    funQuota: 25, // up to 25 of them reserved for the funniest moments
+    thresholdFactor: 1.0,
+    maxHighlights: 100, // Top 100 best highlights
+    funQuota: 50, // up to 50 of them reserved for the funniest moments
   });
 
   // Compute some stats for the response
