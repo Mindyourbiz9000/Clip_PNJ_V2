@@ -4,7 +4,8 @@
  * and categorizing each highlight by its dominant type.
  */
 
-import type { ChatMessage, ChatFragment } from "./twitchChat";
+import type { ChatMessage } from "./twitchChat";
+import { KeywordMatcher, type KeywordMatches } from "./keywords";
 
 /* ------------------------------------------------------------------ */
 /*  Highlight categories                                               */
@@ -29,182 +30,25 @@ export const HIGHLIGHT_TAG_META: Record<HighlightTag, { label: string; emoji: st
 };
 
 /* ------------------------------------------------------------------ */
-/*  Categorized reaction patterns                                      */
-/* ------------------------------------------------------------------ */
-
-interface CategoryPatterns {
-  keywords: RegExp[];
-  emoteNames: Set<string>;
-}
-
-const CATEGORY_PATTERNS: Record<HighlightTag, CategoryPatterns> = {
-  fun: {
-    keywords: [
-      // French laughter (strong signals only)
-      /\bmdr\b/i,
-      /\bptdr\b/i,
-      /\bxptdr\b/i,
-      /\bmort\s*de\s*rire\b/i,
-      /\bjpp\b/i,
-      // English laughter (strong signals only)
-      /\blmao\b/i,
-      /\blmfao\b/i,
-      /\brofl\b/i,
-      // Extended laughter patterns (must be genuine laughter, not just "lol")
-      /ha(ha){2,}/i,
-      /he(he){2,}/i,
-      /x[dD]{2,}/,
-      // Laughter emojis
-      /😂|🤣/,
-    ],
-    emoteNames: new Set([
-      "LUL", "LULW", "OMEGALUL", "KEKW", "ICANT", "pepeLaugh",
-      "EleGiggle", "4Head",
-    ]),
-  },
-
-  hype: {
-    keywords: [
-      // Strong hype signals only
-      /\blets?\s*go+\b/i,
-      /\blet'?s\s*go+\b/i,
-      /\bpog(gers)?\b/i,
-      /\bclip\s*(it|that|this)\b/i,
-      /\binsane\b/i,
-      /\bgod\s*(like|tier)\b/i,
-      // Strong shock/surprise
-      /\bomg\b/i,
-      /\bwtf\b/i,
-      /\bholy\s*(shit|cow|moly|f+)\b/i,
-      /\bno\s*way\b/i,
-      /🔥|😱/,
-    ],
-    emoteNames: new Set([
-      "PogChamp", "Pog", "PogU", "POGGIES", "POGCRAZY",
-      "Kreygasm", "HYPERS", "gachiGASM",
-      "monkaS", "monkaW", "WutFace",
-    ]),
-  },
-
-  ban: {
-    keywords: [
-      // ONLY exact Twitch system message for bans
-      /has been banned/i,
-    ],
-    emoteNames: new Set([
-      "crabrave", "crabPls",
-    ]),
-  },
-
-  sub: {
-    keywords: [
-      // ONLY exact Twitch system message for mass gifting
-      // (the number check >= 15 is handled in scoreMessage)
-      /is gifting/i,
-    ],
-    emoteNames: new Set([]),
-  },
-
-  donation: {
-    keywords: [
-      // Bits / cheers (Twitch-specific)
-      /\bcheer\d+/i,
-      /\bbits\b/i,
-      // Donation patterns
-      /\bdon(o|at(e|ion|ed))\b/i,
-      /\$\s*\d+/,
-      /\b\d+\s*€/,
-      /💰|💵|💲|💎|🎁|💸|🤑/,
-    ],
-    emoteNames: new Set([
-      "HypeCheer",
-    ]),
-  },
-};
-
-/* ------------------------------------------------------------------ */
-/*  Laughter detection                                                 */
+/*  Keyword-based scoring                                              */
 /* ------------------------------------------------------------------ */
 
 /**
- * Laugh emotes. Most popular ones (KEKW, OMEGALUL, ICANT, xdd...) are
- * 7TV / BTTV / FFZ emotes: Twitch sends them as plain text, not as emote
- * fragments, so they are matched as words anywhere in the message.
+ * Laugh intensity of one message from its matched "fun" keywords:
+ * 0 = no laughter, 1 = laughs, up to 3 = laughing really hard
+ * (several laugh words, long "hahahaha", "MDRRRR" typed in caps...).
  */
-const LAUGH_EMOTES = new Set(
-  [
-    "LUL", "LULW", "LULE", "OMEGALUL", "OMEGALULiguess", "KEKW", "KEKL", "KEKWait",
-    "KEKHeim", "KEKInsane", "ICANT", "pepeLaugh", "peepoLaugh", "pepeLaughing",
-    "EleGiggle", "4Head", "LMAO", "xdd", "xddd", "XDD", "WAJAJA", "Laughing",
-    "forsenLaughingAtYou", "HAHAHA", "Hahaa", "LOLW", "LULWW", "KEKWW",
-    "DIESOFCRINGE", "aRolf", "monkaLaugh", "PepeLaugh", "LULEW", "KEKBye",
-  ].map((e) => e.toLowerCase())
-);
-
-/** Typed laughter, FR + EN (one match = one laugh point). */
-const LAUGH_PATTERNS: RegExp[] = [
-  /\bmd+r+\b/i,                    // mdr, mdrr, mdrrrr
-  /\bx?pt+d+r+\b/i,                // ptdr, ptdrrr, xptdr
-  /\bmort\s*de\s*rire\b/i,
-  /\bj+p+p+\b/i,                   // jpp
-  /\bje\s*(suis|sui|s)\s*mort\b/i, // je suis mort
-  /\bj'?suis\s*mort\b/i,
-  /\bjsuis\s*mort\b/i,
-  /\bmort\s*(de|d')?\s*(rire|lol)\b/i,
-  /\bc'?est\s*trop\s*dr[oô]le\b/i,
-  /\btrop\s*dr[oô]le\b/i,
-  /\bl+m+a+o+\b/i,                 // lmao, lmaooo
-  /\blmfao+\b/i,
-  /\brofl\b/i,
-  /\bi'?m\s*dead\b/i,
-  /\blo+l+\b.*\blo+l+\b/i,         // "lol" only counts when repeated
-  /\bLOO+L\b/i,
-  /\b(a|h)?(ha){2,}h?\b/i,         // haha, ahahah, hahaha
-  /\b(a|h)?(ah){2,}a?\b/i,         // ahah, ahahah
-  /\b(he){2,}\b/i,
-  /\b(hi){3,}\b/i,
-  /\bx+d+\b/i,                     // xD, xDDD
-  /😂|🤣|💀|😭|☠️|😹/,
-];
-
-/**
- * Returns a laugh intensity for one message: 0 = no laughter,
- * 1 = laughs, up to 3 = laughing really hard (repeated emotes,
- * long "hahahahaha", "MDRRRRR" in caps...).
- */
-export function laughIntensity(text: string): number {
-  let points = 0;
-
-  // Emote words (each distinct occurrence counts, capped below)
-  for (const word of text.split(/\s+/)) {
-    if (LAUGH_EMOTES.has(word.toLowerCase())) points++;
-  }
-
-  const emotePoints = points;
-
-  // Typed laughter (skipped if the only match is an emote word, e.g. "xdd")
-  let typed = false;
-  for (const pattern of LAUGH_PATTERNS) {
-    if (pattern.test(text)) {
-      typed = true;
-      break;
-    }
-  }
-  if (typed && emotePoints === 0) points++;
-  else if (typed && /[^\s]/.test(text.split(/\s+/).filter((w) => !LAUGH_EMOTES.has(w.toLowerCase())).join(""))) points++;
-
-  if (points === 0) return 0;
-
-  // Extra intensity: long laughter, or typed laughter in caps ("MDRRR", "PTDR")
+function laughFromMatches(text: string, funMatches: string[]): number {
+  if (funMatches.length === 0) return 0;
+  let points = Math.min(funMatches.length, 2);
   if (/(ha|ah|ja|xd|r){4,}/i.test(text) || /(😂|🤣|💀|😭){3,}/u.test(text)) points++;
-  if (typed && text.length >= 4 && text === text.toUpperCase() && /[A-Z]{3,}/.test(text)) points += 0.5;
-
+  // Typed laughter in caps ("MDR", "PTDR"), not an emote that is caps anyway
+  const typedInCaps = funMatches.some((k) => k !== k.toUpperCase());
+  if (typedInCaps && text.length >= 3 && text === text.toUpperCase() && /[A-Z]{3,}/.test(text)) {
+    points += 0.5;
+  }
   return Math.min(points, 3);
 }
-
-/* ------------------------------------------------------------------ */
-/*  Scoring                                                            */
-/* ------------------------------------------------------------------ */
 
 export interface CategoryScores {
   fun: number;
@@ -218,90 +62,66 @@ export interface MessageScore {
   reactionScore: number;
   emoteCount: number;
   categories: CategoryScores;
-  /** Laugh intensity 0..3 (see laughIntensity) */
+  /** Laugh intensity 0..3 */
   laugh: number;
+  /** Keywords found in this message, by category */
+  matches: KeywordMatches;
 }
 
 /** Score a single chat message and break down by category. */
-export function scoreMessage(msg: ChatMessage): MessageScore {
+export function scoreMessage(msg: ChatMessage, matcher: KeywordMatcher): MessageScore {
   let reactionScore = 0;
   let emoteCount = 0;
   const categories: CategoryScores = { fun: 0, hype: 0, ban: 0, sub: 0, donation: 0 };
-
   const text = msg.text;
 
-  // ── High-value event detection (exact Twitch system messages) ──
-
-  // Ban: "has been banned" — big bonus so it always surfaces
+  // ── Twitch system messages (always on, not editable) ──
   if (/has been banned/i.test(text)) {
     reactionScore += 15;
     categories.ban += 15;
   }
-
-  // Sub gifting: "is gifting N" — only counts if N >= 15
   const giftMatch = text.match(/is gifting (\d+)/i);
   if (giftMatch) {
     const count = parseInt(giftMatch[1], 10);
     if (count >= 15) {
-      // Scale bonus with gift count: 15 gifts = 10, 50 gifts = 20 (capped)
+      // 15 gifts = 9, 50 gifts = 20 (capped)
       const bonus = Math.min(Math.round(count * 0.6), 20);
       reactionScore += bonus;
       categories.sub += bonus;
     }
-    // If < 15, do NOT score as sub at all — skip sub keyword matching below
   }
 
-  // ── Laughter (fun) — covers native AND 7TV/BTTV emotes typed as text ──
-  const laugh = laughIntensity(text);
+  // ── Editable keywords ──
+  const matches = matcher.match(text);
+
+  const laugh = laughFromMatches(text, matches.fun);
   if (laugh > 0) {
     reactionScore += laugh * 2;
     categories.fun += laugh * 2;
-    if (msg.fragments.some((f) => f.emote && LAUGH_EMOTES.has(f.text.trim().toLowerCase()))) {
-      emoteCount++;
-    }
+  }
+  if (matches.hype.length > 0) {
+    const pts = Math.min(matches.hype.length, 3) * 1.5;
+    reactionScore += pts;
+    categories.hype += pts;
+  }
+  if (matches.donation.length > 0) {
+    const pts = Math.min(matches.donation.length, 3) * 1.5;
+    reactionScore += pts;
+    categories.donation += pts;
   }
 
-  // ── Emote scoring per fragment (non-fun categories) ──
+  // Native Twitch emotes that are in the keyword lists
   for (const frag of msg.fragments) {
-    if (!frag.emote) continue;
-    const emoteName = frag.text.trim();
-
-    for (const cat of Object.keys(CATEGORY_PATTERNS) as Array<keyof typeof CATEGORY_PATTERNS>) {
-      if (cat === "fun") continue;
-      if (CATEGORY_PATTERNS[cat].emoteNames.has(emoteName)) {
-        emoteCount++;
-        reactionScore += 2;
-        categories[cat] += 2;
-        break; // one emote = one category
-      }
-    }
+    if (frag.emote && matcher.isKeyword(frag.text)) emoteCount++;
   }
 
-  // ── Keyword scoring per category ──
-  for (const cat of Object.keys(CATEGORY_PATTERNS) as Array<keyof typeof CATEGORY_PATTERNS>) {
-    if (cat === "fun") continue; // handled by laughIntensity above
-    // Skip sub keyword matching for messages that are small gift events (< 15)
-    // They already got 0 from the special handler above
-    if (cat === "sub" && giftMatch && parseInt(giftMatch[1], 10) < 15) continue;
-    // Skip sub keyword matching for non-gift messages (only system gift msgs count)
-    if (cat === "sub" && !giftMatch) continue;
-
-    for (const pattern of CATEGORY_PATTERNS[cat].keywords) {
-      if (pattern.test(text)) {
-        reactionScore += 1;
-        categories[cat] += 1;
-        break; // max 1 keyword match per category per message
-      }
-    }
-  }
-
-  // ── ALL CAPS detection (excitement indicator, min 5 chars) ──
+  // ── ALL CAPS (excitement indicator, min 5 chars) ──
   if (text.length >= 5 && text === text.toUpperCase() && /[A-Z]/.test(text)) {
     reactionScore += 0.5;
     categories.hype += 0.5;
   }
 
-  return { reactionScore, emoteCount, categories, laugh };
+  return { reactionScore, emoteCount, categories, laugh, matches };
 }
 
 /* ------------------------------------------------------------------ */
@@ -327,6 +147,8 @@ export interface ChatBucket {
   laughers: Set<string>;
   /** Timestamps of laughing messages (to center the clip on the laugh peak) */
   laughTimestamps: number[];
+  /** How many times each keyword was used ("fun:KEKW" -> 23) */
+  keywordHits: Map<string, number>;
 }
 
 function emptyBucket(startSec: number): ChatBucket {
@@ -342,6 +164,7 @@ function emptyBucket(startSec: number): ChatBucket {
     laughIntensity: 0,
     laughers: new Set(),
     laughTimestamps: [],
+    keywordHits: new Map(),
   };
 }
 
@@ -349,8 +172,11 @@ export class BucketAccumulator {
   private buckets = new Map<number, ChatBucket>();
   private windowSec: number;
 
-  constructor(windowSec = 30) {
+  private matcher: KeywordMatcher;
+
+  constructor(windowSec: number, matcher: KeywordMatcher) {
     this.windowSec = windowSec;
+    this.matcher = matcher;
   }
 
   addMessage(msg: ChatMessage): void {
@@ -365,7 +191,13 @@ export class BucketAccumulator {
     bucket.messageCount++;
     bucket.messageTimestamps.push(msg.offsetSeconds);
 
-    const { reactionScore, emoteCount, categories, laugh } = scoreMessage(msg);
+    const { reactionScore, emoteCount, categories, laugh, matches } = scoreMessage(msg, this.matcher);
+    for (const cat of ["fun", "hype", "donation"] as const) {
+      for (const kw of new Set(matches[cat])) {
+        const k = `${cat}:${kw}`;
+        bucket.keywordHits.set(k, (bucket.keywordHits.get(k) ?? 0) + 1);
+      }
+    }
     if (laugh > 0) {
       bucket.laughMessages++;
       bucket.laughIntensity += laugh;
@@ -384,7 +216,7 @@ export class BucketAccumulator {
 
     // Keep sample reaction messages for context (laughs first: they explain the clip)
     if (laugh > 0 && bucket.sampleMessages.length >= 10) {
-      const idx = bucket.sampleMessages.findIndex((m) => laughIntensity(m) === 0);
+      const idx = bucket.sampleMessages.findIndex((m) => this.matcher.match(m).fun.length === 0);
       if (idx >= 0) bucket.sampleMessages[idx] = msg.text.slice(0, 80);
     } else if (reactionScore > 0 && bucket.sampleMessages.length < 10) {
       const sample = msg.text.slice(0, 80);
@@ -515,6 +347,8 @@ export interface HypeMoment {
   burstScore: number;
   /** Sample reaction messages */
   sampleMessages: string[];
+  /** Keywords that triggered this highlight, most used first */
+  keywords: Array<{ category: "fun" | "hype" | "donation"; word: string; count: number }>;
 }
 
 /* ------------------------------------------------------------------ */
@@ -576,6 +410,17 @@ function computeFunScore(
   return base * ratioBonus * spikeBonus;
 }
 
+/** Most used keywords of a window, e.g. [{ fun, KEKW, 23 }, ...]. */
+function topKeywords(hits: Map<string, number>, max: number): HypeMoment["keywords"] {
+  return Array.from(hits.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, max)
+    .map(([k, count]) => {
+      const i = k.indexOf(":");
+      return { category: k.slice(0, i) as "fun" | "hype" | "donation", word: k.slice(i + 1), count };
+    });
+}
+
 /**
  * Picks the moment chat reacted hardest: the center of the densest
  * 8-second window of the given timestamps.
@@ -619,6 +464,7 @@ function mergeBuckets(bucketList: ChatBucket[]): ChatBucket {
     merged.laughIntensity += b.laughIntensity;
     for (const a of b.laughers) merged.laughers.add(a);
     merged.laughTimestamps.push(...b.laughTimestamps);
+    for (const [k, n] of b.keywordHits) merged.keywordHits.set(k, (merged.keywordHits.get(k) ?? 0) + n);
     // Collect sample messages from all buckets (up to 10)
     for (const s of b.sampleMessages) {
       if (merged.sampleMessages.length < 10) merged.sampleMessages.push(s);
@@ -820,6 +666,7 @@ export function findHypeMoments(
       categoryScores: { ...b.categoryScores },
       burstScore: entry.burstScore,
       sampleMessages: b.sampleMessages,
+      keywords: topKeywords(b.keywordHits, 8),
     });
     usedRanges.push([start, end]);
     usedKeys.add(entry.key);

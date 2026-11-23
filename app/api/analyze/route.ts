@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { extractVideoId, iterateChat } from "@/lib/twitchChat";
 import { BucketAccumulator, findHypeMoments } from "@/lib/chatAnalyzer";
 import { isTwitchUrl } from "@/lib/resolveUrl";
+import { KeywordMatcher, sanitizeKeywords } from "@/lib/keywords";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -27,6 +28,8 @@ export async function POST(req: NextRequest) {
   }
 
   const { url } = body;
+  // Keywords edited by the user (saved in their browser). Missing = defaults.
+  const keywords = sanitizeKeywords(body.keywords);
 
   if (typeof url !== "string" || !url.trim()) {
     return jsonError("URL is required", 400);
@@ -41,7 +44,7 @@ export async function POST(req: NextRequest) {
     return jsonError("Could not extract video ID from URL", 400);
   }
 
-  const accumulator = new BucketAccumulator(30); // 30-second windows
+  const accumulator = new BucketAccumulator(30, new KeywordMatcher(keywords)); // 30-second windows
   const startTime = Date.now();
 
   try {

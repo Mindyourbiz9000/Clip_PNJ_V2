@@ -1,6 +1,17 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import {
+  DEFAULT_KEYWORDS,
+  KEYWORD_CATEGORIES,
+  KEYWORD_LIMITS,
+  sanitizeKeywords,
+  type KeywordCategory,
+  type KeywordConfig,
+} from "@/lib/keywords";
+
+/** Browser storage key for the user's keywords (no database). */
+const KEYWORDS_STORAGE_KEY = "clipping.keywords.v1";
 
 type AnalyzeStatus = "idle" | "analyzing" | "done" | "error";
 
@@ -16,6 +27,7 @@ interface HypeMoment {
   categoryScores: Record<string, number>;
   burstScore: number;
   sampleMessages: string[];
+  keywords?: Array<{ category: KeywordCategory; word: string; count: number }>;
 }
 
 /** Visual config for each highlight tag */
@@ -483,6 +495,150 @@ interface TimelinePoint {
   count: number;
 }
 
+/* ------------------------------------------------------------------ */
+/*  Keyword editor (saved in the browser only)                         */
+/* ------------------------------------------------------------------ */
+
+function sameList(a: string[], b: string[]) {
+  return a.length === b.length && a.every((x, i) => x === b[i]);
+}
+
+function KeywordEditor({
+  keywords,
+  onChange,
+}: {
+  keywords: KeywordConfig;
+  onChange: (next: KeywordConfig) => void;
+}) {
+  const [drafts, setDrafts] = useState<Record<KeywordCategory, string>>({ fun: "", hype: "", donation: "" });
+  const modified = KEYWORD_CATEGORIES.some((c) => !sameList(keywords[c], DEFAULT_KEYWORDS[c]));
+
+  function add(cat: KeywordCategory) {
+    // Several keywords at once, separated by commas
+    const parts = drafts[cat].split(",").map((p) => p.trim()).filter(Boolean);
+    if (parts.length === 0) return;
+    const existing = new Set(keywords[cat].map((k) => k.toLowerCase()));
+    const added = parts.filter((p) => !existing.has(p.toLowerCase()));
+    onChange(sanitizeKeywords({ ...keywords, [cat]: [...keywords[cat], ...added] }));
+    setDrafts((d) => ({ ...d, [cat]: "" }));
+  }
+
+  function remove(cat: KeywordCategory, word: string) {
+    onChange({ ...keywords, [cat]: keywords[cat].filter((k) => k !== word) });
+  }
+
+  return (
+    <details className="group mt-4 rounded-lg border border-gray-700 bg-gray-800/40">
+      <summary className="flex cursor-pointer select-none items-center justify-between gap-2 px-4 py-3 text-sm font-medium text-gray-200">
+        <span>
+          🔤 Detection keywords
+          {modified && (
+            <span className="ml-2 rounded-full bg-indigo-500/20 px-2 py-0.5 text-[10px] font-semibold text-indigo-300">
+              customized
+            </span>
+          )}
+        </span>
+        <span className="text-xs text-gray-500 group-open:hidden">Show &amp; edit</span>
+        <span className="hidden text-xs text-gray-500 group-open:inline">Hide</span>
+      </summary>
+
+      <div className="space-y-4 border-t border-gray-700 px-4 pb-4 pt-3">
+        <p className="text-xs text-gray-400">
+          These words are what the analysis looks for in chat. Matching ignores case and catches stretched
+          forms (<em>mdr</em> also finds <em>mdrrrr</em>, <em>haha</em> finds <em>hahahaha</em>). Your list is saved
+          in <strong className="text-gray-300">this browser only</strong>. Click <em>Re-analyze Chat</em> to apply
+          changes.
+        </p>
+
+        {KEYWORD_CATEGORIES.map((cat) => {
+          const cfg = TAG_CONFIG[cat];
+          const isDefault = sameList(keywords[cat], DEFAULT_KEYWORDS[cat]);
+          return (
+            <div key={cat}>
+              <div className="mb-1.5 flex items-center justify-between">
+                <span className={`text-xs font-semibold ${cfg.color}`}>
+                  {cfg.emoji} {cfg.label}{" "}
+                  <span className="font-normal text-gray-500">({keywords[cat].length})</span>
+                </span>
+                {!isDefault && (
+                  <button
+                    type="button"
+                    onClick={() => onChange({ ...keywords, [cat]: [...DEFAULT_KEYWORDS[cat]] })}
+                    className="text-[11px] text-gray-400 underline hover:text-gray-200"
+                  >
+                    Reset {cfg.label}
+                  </button>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {keywords[cat].map((word) => (
+                  <span
+                    key={word}
+                    className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs ${cfg.color} ${cfg.bg} ${cfg.border}`}
+                  >
+                    {word}
+                    <button
+                      type="button"
+                      onClick={() => remove(cat, word)}
+                      aria-label={`Remove ${word}`}
+                      className="opacity-60 hover:opacity-100"
+                    >
+                      &times;
+                    </button>
+                  </span>
+                ))}
+                {keywords[cat].length === 0 && (
+                  <span className="text-xs italic text-gray-500">No keywords: this category is turned off.</span>
+                )}
+              </div>
+              <form
+                className="mt-2 flex gap-2"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  add(cat);
+                }}
+              >
+                <input
+                  type="text"
+                  value={drafts[cat]}
+                  maxLength={KEYWORD_LIMITS.maxLength * 5}
+                  onChange={(e) => setDrafts((d) => ({ ...d, [cat]: e.target.value }))}
+                  placeholder={`Add to ${cfg.label} (comma-separated)`}
+                  className="min-w-0 flex-1 rounded-md border border-gray-700 bg-gray-900 px-3 py-1.5 text-xs text-white placeholder-gray-500 focus:border-indigo-500 focus:outline-none"
+                />
+                <button
+                  type="submit"
+                  className="rounded-md border border-gray-600 bg-gray-700 px-3 py-1.5 text-xs font-semibold text-gray-200 hover:bg-gray-600"
+                >
+                  Add
+                </button>
+              </form>
+            </div>
+          );
+        })}
+
+        <div className="rounded-md bg-gray-900/60 px-3 py-2 text-[11px] text-gray-500">
+          Always detected (Twitch system messages, not editable): {TAG_CONFIG.ban.emoji} bans
+          (&quot;has been banned&quot;) and {TAG_CONFIG.sub.emoji} sub gifts of 15 or more
+          (&quot;is gifting N&quot;).
+        </div>
+
+        {modified && (
+          <button
+            type="button"
+            onClick={() => {
+              if (window.confirm("Restore all default keywords?")) onChange(sanitizeKeywords(DEFAULT_KEYWORDS));
+            }}
+            className="text-xs text-red-300 underline hover:text-red-200"
+          >
+            Reset all keywords to default
+          </button>
+        )}
+      </div>
+    </details>
+  );
+}
+
 function ChatActivityChart({
   timeline,
   moments,
@@ -686,6 +842,25 @@ export default function Home() {
   const [analyzeStatus, setAnalyzeStatus] = useState<AnalyzeStatus>("idle");
   const [analyzeError, setAnalyzeError] = useState("");
   const [moments, setMoments] = useState<HypeMoment[]>([]);
+
+  // Detection keywords: defaults, or the user's list saved in this browser
+  const [keywords, setKeywords] = useState<KeywordConfig>(() => sanitizeKeywords(DEFAULT_KEYWORDS));
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(KEYWORDS_STORAGE_KEY);
+      if (saved) setKeywords(sanitizeKeywords(JSON.parse(saved)));
+    } catch {
+      // Storage unavailable or corrupted: keep defaults
+    }
+  }, []);
+  function updateKeywords(next: KeywordConfig) {
+    setKeywords(next);
+    try {
+      window.localStorage.setItem(KEYWORDS_STORAGE_KEY, JSON.stringify(next));
+    } catch {
+      // Private mode / storage full: still works for this session
+    }
+  }
   const [totalMessages, setTotalMessages] = useState(0);
   const [timeline, setTimeline] = useState<TimelinePoint[]>([]);
   const [selectedMomentIdx, setSelectedMomentIdx] = useState<number | null>(null);
@@ -723,7 +898,7 @@ export default function Home() {
       const res = await fetch("/api/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url }),
+        body: JSON.stringify({ url, keywords }),
       });
 
       if (!res.ok) {
@@ -939,6 +1114,8 @@ export default function Home() {
             </button>
           )}
 
+          {isTwitch && <KeywordEditor keywords={keywords} onChange={updateKeywords} />}
+
           {analyzeStatus === "analyzing" && (
             <div className="mt-4 flex items-center gap-2 text-sm text-purple-300">
               <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
@@ -1036,6 +1213,22 @@ export default function Home() {
                         <p className="mt-1 text-[10px] text-violet-400">
                           Burst detected &middot; {m.burstScore.toFixed(1)} intensity
                         </p>
+                      )}
+                      {m.keywords && m.keywords.length > 0 && (
+                        <div className="mt-1.5 flex flex-wrap gap-1">
+                          {m.keywords.slice(0, 5).map((k) => {
+                            const kc = TAG_CONFIG[k.category] ?? TAG_CONFIG.hype;
+                            return (
+                              <span
+                                key={`${k.category}:${k.word}`}
+                                className={`rounded px-1.5 py-0.5 text-[10px] ${kc.color} ${kc.bg}`}
+                                title={`${k.count} messages with "${k.word}"`}
+                              >
+                                {k.word} &times;{k.count}
+                              </span>
+                            );
+                          })}
+                        </div>
                       )}
                       {m.sampleMessages.length > 0 && (
                         <p className="mt-1 truncate text-xs text-gray-500">
@@ -1147,11 +1340,11 @@ export default function Home() {
                         <span>{cfg.label}</span>
                       </span>
                       <span className="text-[10px] text-gray-500">
-                        {tag === "fun" && "Many chatters laughing: KEKW, OMEGALUL, ICANT, MDR, PTDR, JPP, 💀"}
-                        {tag === "hype" && "PogChamp, lets go, insane plays, OMG, WTF"}
+                        {tag === "fun" && "Many chatters laughing (see Detection keywords)"}
+                        {tag === "hype" && "PogChamp, lets go, OMG, WTF... (editable)"}
                         {tag === "ban" && "Exact \"has been banned\" system messages"}
                         {tag === "sub" && "Mass gifting events (15+ subs)"}
-                        {tag === "donation" && "Cheer bits, donations, tips"}
+                        {tag === "donation" && "Cheer bits, donations, tips (editable)"}
                       </span>
                     </div>
                   );
