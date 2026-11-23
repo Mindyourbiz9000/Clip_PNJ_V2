@@ -1022,7 +1022,7 @@ export default function Home() {
             <h2 className="mb-4 text-lg font-semibold text-white">How are highlights picked?</h2>
             <div className="space-y-4 text-sm text-gray-400 leading-relaxed">
               <p>
-                Clipping de LeBarv__ scans every chat message from the VOD replay and picks the <strong className="text-gray-300">top 20 best moments</strong>, with up to 10 slots reserved for the funniest ones. Only the strongest signals make the cut:
+                Clipping de LeBarv__ scans every chat message from the VOD replay and picks the <strong className="text-gray-300">top 50 best moments</strong>, with up to 25 slots reserved for the funniest ones. Only the strongest signals make the cut:
               </p>
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -1060,9 +1060,9 @@ export default function Home() {
               </div>
 
               <div className="rounded-lg border border-gray-700 bg-gray-800/50 p-3">
-                <p className="mb-1 text-xs font-semibold text-purple-300">5. Funny moments first, then top 20</p>
+                <p className="mb-1 text-xs font-semibold text-purple-300">5. Funny moments first, then top 50</p>
                 <p className="text-xs text-gray-400">
-                  Funny moments are ranked by how many <em>different</em> chatters laughed, how much of chat was laughing, and how suddenly it started. The best ones fill up to 10 slots, then the rest are filled by composite score (reactions + emotes + velocity + diversity), with a 60-second gap between clips. Each clip is centered on the reaction peak: it starts 20 seconds before chat explodes, to catch the setup and the punchline.
+                  Funny moments are ranked by how many <em>different</em> chatters laughed, how much of chat was laughing, and how suddenly it started. The best ones fill up to 25 slots, then the rest are filled by composite score (reactions + emotes + velocity + diversity), with a 60-second gap between clips. Each clip is centered on the reaction peak: it starts 20 seconds before chat explodes, to catch the setup and the punchline.
                 </p>
               </div>
 
