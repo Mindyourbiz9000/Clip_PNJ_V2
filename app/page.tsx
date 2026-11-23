@@ -1022,7 +1022,7 @@ export default function Home() {
             <h2 className="mb-4 text-lg font-semibold text-white">How are highlights picked?</h2>
             <div className="space-y-4 text-sm text-gray-400 leading-relaxed">
               <p>
-                Clipping de LeBarv__ scans every chat message from the VOD replay and picks the <strong className="text-gray-300">top 15 absolute best moments</strong>. Only the strongest signals make the cut:
+                Clipping de LeBarv__ scans every chat message from the VOD replay and picks the <strong className="text-gray-300">top 20 best moments</strong>, with up to 10 slots reserved for the funniest ones. Only the strongest signals make the cut:
               </p>
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -1039,7 +1039,7 @@ export default function Home() {
                   <p className="text-xs text-gray-400">
                     <span className="text-red-300">Bans</span> are detected from the exact <em>&quot;has been banned&quot;</em> system message.{" "}
                     <span className="text-purple-300">Subs</span> are detected from <em>&quot;is gifting N&quot;</em> only when N &ge; 15.{" "}
-                    <span className="text-yellow-300">Fun</span> and <span className="text-orange-300">Hype</span> use tight emote &amp; keyword patterns (OMEGALUL, PogChamp, MDR, etc.).{" "}
+                    <span className="text-yellow-300">Fun</span> counts every laugh, including 7TV/BTTV emotes (KEKW, OMEGALUL, ICANT, xdd) and typed laughter (MDR, PTDR, JPP, LMAO, hahaha, 💀). <span className="text-orange-300">Hype</span> uses PogChamp, lets go, OMG, WTF.{" "}
                     <span className="text-emerald-300">Donations</span> pick up Cheer bits and donation messages.
                   </p>
                 </div>
@@ -1060,9 +1060,9 @@ export default function Home() {
               </div>
 
               <div className="rounded-lg border border-gray-700 bg-gray-800/50 p-3">
-                <p className="mb-1 text-xs font-semibold text-purple-300">5. Top 15 selection</p>
+                <p className="mb-1 text-xs font-semibold text-purple-300">5. Funny moments first, then top 20</p>
                 <p className="text-xs text-gray-400">
-                  All candidates are ranked by composite score (reactions + emotes + velocity + diversity). The top 15 are selected with a minimum 60-second gap to avoid overlap. Each is tagged with its dominant category.
+                  Funny moments are ranked by how many <em>different</em> chatters laughed, how much of chat was laughing, and how suddenly it started. The best ones fill up to 10 slots, then the rest are filled by composite score (reactions + emotes + velocity + diversity), with a 60-second gap between clips. Each clip is centered on the reaction peak: it starts 20 seconds before chat explodes, to catch the setup and the punchline.
                 </p>
               </div>
 
@@ -1076,7 +1076,7 @@ export default function Home() {
                         <span>{cfg.label}</span>
                       </span>
                       <span className="text-[10px] text-gray-500">
-                        {tag === "fun" && "Strong laughter: MDR, PTDR, LMAO, OMEGALUL, KEKW"}
+                        {tag === "fun" && "Many chatters laughing: KEKW, OMEGALUL, ICANT, MDR, PTDR, JPP, 💀"}
                         {tag === "hype" && "PogChamp, lets go, insane plays, OMG, WTF"}
                         {tag === "ban" && "Exact \"has been banned\" system messages"}
                         {tag === "sub" && "Mass gifting events (15+ subs)"}

@@ -123,6 +123,86 @@ const CATEGORY_PATTERNS: Record<HighlightTag, CategoryPatterns> = {
 };
 
 /* ------------------------------------------------------------------ */
+/*  Laughter detection                                                 */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Laugh emotes. Most popular ones (KEKW, OMEGALUL, ICANT, xdd...) are
+ * 7TV / BTTV / FFZ emotes: Twitch sends them as plain text, not as emote
+ * fragments, so they are matched as words anywhere in the message.
+ */
+const LAUGH_EMOTES = new Set(
+  [
+    "LUL", "LULW", "LULE", "OMEGALUL", "OMEGALULiguess", "KEKW", "KEKL", "KEKWait",
+    "KEKHeim", "KEKInsane", "ICANT", "pepeLaugh", "peepoLaugh", "pepeLaughing",
+    "EleGiggle", "4Head", "LMAO", "xdd", "xddd", "XDD", "WAJAJA", "Laughing",
+    "forsenLaughingAtYou", "HAHAHA", "Hahaa", "LOLW", "LULWW", "KEKWW",
+    "DIESOFCRINGE", "aRolf", "monkaLaugh", "PepeLaugh", "LULEW", "KEKBye",
+  ].map((e) => e.toLowerCase())
+);
+
+/** Typed laughter, FR + EN (one match = one laugh point). */
+const LAUGH_PATTERNS: RegExp[] = [
+  /\bmd+r+\b/i,                    // mdr, mdrr, mdrrrr
+  /\bx?pt+d+r+\b/i,                // ptdr, ptdrrr, xptdr
+  /\bmort\s*de\s*rire\b/i,
+  /\bj+p+p+\b/i,                   // jpp
+  /\bje\s*(suis|sui|s)\s*mort\b/i, // je suis mort
+  /\bj'?suis\s*mort\b/i,
+  /\bjsuis\s*mort\b/i,
+  /\bmort\s*(de|d')?\s*(rire|lol)\b/i,
+  /\bc'?est\s*trop\s*dr[oô]le\b/i,
+  /\btrop\s*dr[oô]le\b/i,
+  /\bl+m+a+o+\b/i,                 // lmao, lmaooo
+  /\blmfao+\b/i,
+  /\brofl\b/i,
+  /\bi'?m\s*dead\b/i,
+  /\blo+l+\b.*\blo+l+\b/i,         // "lol" only counts when repeated
+  /\bLOO+L\b/i,
+  /\b(a|h)?(ha){2,}h?\b/i,         // haha, ahahah, hahaha
+  /\b(a|h)?(ah){2,}a?\b/i,         // ahah, ahahah
+  /\b(he){2,}\b/i,
+  /\b(hi){3,}\b/i,
+  /\bx+d+\b/i,                     // xD, xDDD
+  /😂|🤣|💀|😭|☠️|😹/,
+];
+
+/**
+ * Returns a laugh intensity for one message: 0 = no laughter,
+ * 1 = laughs, up to 3 = laughing really hard (repeated emotes,
+ * long "hahahahaha", "MDRRRRR" in caps...).
+ */
+export function laughIntensity(text: string): number {
+  let points = 0;
+
+  // Emote words (each distinct occurrence counts, capped below)
+  for (const word of text.split(/\s+/)) {
+    if (LAUGH_EMOTES.has(word.toLowerCase())) points++;
+  }
+
+  const emotePoints = points;
+
+  // Typed laughter (skipped if the only match is an emote word, e.g. "xdd")
+  let typed = false;
+  for (const pattern of LAUGH_PATTERNS) {
+    if (pattern.test(text)) {
+      typed = true;
+      break;
+    }
+  }
+  if (typed && emotePoints === 0) points++;
+  else if (typed && /[^\s]/.test(text.split(/\s+/).filter((w) => !LAUGH_EMOTES.has(w.toLowerCase())).join(""))) points++;
+
+  if (points === 0) return 0;
+
+  // Extra intensity: long laughter, or typed laughter in caps ("MDRRR", "PTDR")
+  if (/(ha|ah|ja|xd|r){4,}/i.test(text) || /(😂|🤣|💀|😭){3,}/u.test(text)) points++;
+  if (typed && text.length >= 4 && text === text.toUpperCase() && /[A-Z]{3,}/.test(text)) points += 0.5;
+
+  return Math.min(points, 3);
+}
+
+/* ------------------------------------------------------------------ */
 /*  Scoring                                                            */
 /* ------------------------------------------------------------------ */
 
@@ -138,6 +218,8 @@ export interface MessageScore {
   reactionScore: number;
   emoteCount: number;
   categories: CategoryScores;
+  /** Laugh intensity 0..3 (see laughIntensity) */
+  laugh: number;
 }
 
 /** Score a single chat message and break down by category. */
@@ -169,12 +251,23 @@ export function scoreMessage(msg: ChatMessage): MessageScore {
     // If < 15, do NOT score as sub at all — skip sub keyword matching below
   }
 
-  // ── Emote scoring per fragment ──
+  // ── Laughter (fun) — covers native AND 7TV/BTTV emotes typed as text ──
+  const laugh = laughIntensity(text);
+  if (laugh > 0) {
+    reactionScore += laugh * 2;
+    categories.fun += laugh * 2;
+    if (msg.fragments.some((f) => f.emote && LAUGH_EMOTES.has(f.text.trim().toLowerCase()))) {
+      emoteCount++;
+    }
+  }
+
+  // ── Emote scoring per fragment (non-fun categories) ──
   for (const frag of msg.fragments) {
     if (!frag.emote) continue;
     const emoteName = frag.text.trim();
 
     for (const cat of Object.keys(CATEGORY_PATTERNS) as Array<keyof typeof CATEGORY_PATTERNS>) {
+      if (cat === "fun") continue;
       if (CATEGORY_PATTERNS[cat].emoteNames.has(emoteName)) {
         emoteCount++;
         reactionScore += 2;
@@ -186,6 +279,7 @@ export function scoreMessage(msg: ChatMessage): MessageScore {
 
   // ── Keyword scoring per category ──
   for (const cat of Object.keys(CATEGORY_PATTERNS) as Array<keyof typeof CATEGORY_PATTERNS>) {
+    if (cat === "fun") continue; // handled by laughIntensity above
     // Skip sub keyword matching for messages that are small gift events (< 15)
     // They already got 0 from the special handler above
     if (cat === "sub" && giftMatch && parseInt(giftMatch[1], 10) < 15) continue;
@@ -207,7 +301,7 @@ export function scoreMessage(msg: ChatMessage): MessageScore {
     categories.hype += 0.5;
   }
 
-  return { reactionScore, emoteCount, categories };
+  return { reactionScore, emoteCount, categories, laugh };
 }
 
 /* ------------------------------------------------------------------ */
@@ -225,6 +319,30 @@ export interface ChatBucket {
   messageTimestamps: number[];
   /** A few sample reaction messages to display as context */
   sampleMessages: string[];
+  /** Number of messages containing laughter */
+  laughMessages: number;
+  /** Sum of laugh intensities */
+  laughIntensity: number;
+  /** Distinct chatters who laughed (a real funny moment = many people laughing) */
+  laughers: Set<string>;
+  /** Timestamps of laughing messages (to center the clip on the laugh peak) */
+  laughTimestamps: number[];
+}
+
+function emptyBucket(startSec: number): ChatBucket {
+  return {
+    startSec,
+    messageCount: 0,
+    reactionScore: 0,
+    emoteCount: 0,
+    categoryScores: { fun: 0, hype: 0, ban: 0, sub: 0, donation: 0 },
+    messageTimestamps: [],
+    sampleMessages: [],
+    laughMessages: 0,
+    laughIntensity: 0,
+    laughers: new Set(),
+    laughTimestamps: [],
+  };
 }
 
 export class BucketAccumulator {
@@ -240,22 +358,20 @@ export class BucketAccumulator {
 
     let bucket = this.buckets.get(key);
     if (!bucket) {
-      bucket = {
-        startSec: key,
-        messageCount: 0,
-        reactionScore: 0,
-        emoteCount: 0,
-        categoryScores: { fun: 0, hype: 0, ban: 0, sub: 0, donation: 0 },
-        messageTimestamps: [],
-        sampleMessages: [],
-      };
+      bucket = emptyBucket(key);
       this.buckets.set(key, bucket);
     }
 
     bucket.messageCount++;
     bucket.messageTimestamps.push(msg.offsetSeconds);
 
-    const { reactionScore, emoteCount, categories } = scoreMessage(msg);
+    const { reactionScore, emoteCount, categories, laugh } = scoreMessage(msg);
+    if (laugh > 0) {
+      bucket.laughMessages++;
+      bucket.laughIntensity += laugh;
+      bucket.laughers.add(msg.author || `anon-${bucket.laughMessages}`);
+      bucket.laughTimestamps.push(msg.offsetSeconds);
+    }
     bucket.reactionScore += reactionScore;
     bucket.emoteCount += emoteCount;
 
@@ -266,8 +382,11 @@ export class BucketAccumulator {
     bucket.categoryScores.sub += categories.sub;
     bucket.categoryScores.donation += categories.donation;
 
-    // Keep sample reaction messages for context (increased from 5 to 10)
-    if (reactionScore > 0 && bucket.sampleMessages.length < 10) {
+    // Keep sample reaction messages for context (laughs first: they explain the clip)
+    if (laugh > 0 && bucket.sampleMessages.length >= 10) {
+      const idx = bucket.sampleMessages.findIndex((m) => laughIntensity(m) === 0);
+      if (idx >= 0) bucket.sampleMessages[idx] = msg.text.slice(0, 80);
+    } else if (reactionScore > 0 && bucket.sampleMessages.length < 10) {
       const sample = msg.text.slice(0, 80);
       bucket.sampleMessages.push(sample);
     }
@@ -417,6 +536,66 @@ interface WindowScore {
   velocityScore: number;
   /** Unique message ratio (diversity of reactions) */
   uniqueRatio: number;
+  /** Laughter-only score (see computeFunScore) */
+  funScore: number;
+}
+
+/**
+ * Laughter-only score for a window. What makes a moment really funny:
+ *  - many DIFFERENT chatters laughing (not one person spamming KEKW),
+ *  - a big share of chat laughing (works on small streams too),
+ *  - laughter that suddenly appears compared to the minute before.
+ */
+function computeFunScore(
+  merged: ChatBucket,
+  keys: number[],
+  buckets: Map<number, ChatBucket>,
+  idx: number
+): number {
+  const laughers = merged.laughers.size;
+  if (laughers < 4) return 0;
+
+  const laughRatio = merged.laughMessages / Math.max(merged.messageCount, 1);
+
+  // Baseline laughter in the 2 previous buckets
+  let prevLaughers = 0;
+  let prevCount = 0;
+  for (let i = Math.max(0, idx - 2); i < idx; i++) {
+    const b = buckets.get(keys[i]);
+    if (b) {
+      prevLaughers += b.laughers.size;
+      prevCount++;
+    }
+  }
+  const prevAvg = prevCount ? prevLaughers / prevCount : 0;
+  const spike = laughers / Math.max(prevAvg * 2, 1); // merged = 2 buckets
+  const spikeBonus = spike >= 4 ? 1.6 : spike >= 2.5 ? 1.35 : spike >= 1.5 ? 1.15 : 1.0;
+
+  const base = laughers * 3 + merged.laughIntensity;
+  const ratioBonus = 1 + Math.min(laughRatio, 0.6) * 2; // 1.0 .. 2.2
+  return base * ratioBonus * spikeBonus;
+}
+
+/**
+ * Picks the moment chat reacted hardest: the center of the densest
+ * 8-second window of the given timestamps.
+ */
+function peakTime(timestamps: number[], fallback: number): number {
+  if (timestamps.length === 0) return fallback;
+  const sorted = [...timestamps].sort((a, b) => a - b);
+  let best = 0;
+  let bestLeft = 0;
+  let bestRight = 0;
+  let left = 0;
+  for (let right = 0; right < sorted.length; right++) {
+    while (sorted[right] - sorted[left] > 8) left++;
+    if (right - left + 1 > best) {
+      best = right - left + 1;
+      bestLeft = left;
+      bestRight = right;
+    }
+  }
+  return (sorted[bestLeft] + sorted[bestRight]) / 2;
 }
 
 /**
@@ -424,15 +603,7 @@ interface WindowScore {
  * scoring. This captures moments where activity spans bucket boundaries.
  */
 function mergeBuckets(bucketList: ChatBucket[]): ChatBucket {
-  const merged: ChatBucket = {
-    startSec: bucketList[0]?.startSec ?? 0,
-    messageCount: 0,
-    reactionScore: 0,
-    emoteCount: 0,
-    categoryScores: { fun: 0, hype: 0, ban: 0, sub: 0, donation: 0 },
-    messageTimestamps: [],
-    sampleMessages: [],
-  };
+  const merged = emptyBucket(bucketList[0]?.startSec ?? 0);
 
   for (const b of bucketList) {
     merged.messageCount += b.messageCount;
@@ -444,6 +615,10 @@ function mergeBuckets(bucketList: ChatBucket[]): ChatBucket {
     merged.categoryScores.sub += b.categoryScores.sub;
     merged.categoryScores.donation += b.categoryScores.donation;
     merged.messageTimestamps.push(...b.messageTimestamps);
+    merged.laughMessages += b.laughMessages;
+    merged.laughIntensity += b.laughIntensity;
+    for (const a of b.laughers) merged.laughers.add(a);
+    merged.laughTimestamps.push(...b.laughTimestamps);
     // Collect sample messages from all buckets (up to 10)
     for (const s of b.sampleMessages) {
       if (merged.sampleMessages.length < 10) merged.sampleMessages.push(s);
@@ -528,6 +703,11 @@ export function findHypeMoments(
     thresholdFactor?: number;
     /** Optional hard cap (0 = no limit). Default 0 (unlimited) */
     maxHighlights?: number;
+    /**
+     * Slots reserved for funny moments, picked first by a laughter-only
+     * score so they are not crowded out by sub trains or raids. Default 0.
+     */
+    funQuota?: number;
   }
 ): HypeMoment[] {
   const windowSec = opts?.windowSec ?? 30;
@@ -535,6 +715,7 @@ export function findHypeMoments(
   const minGap = opts?.minGapSec ?? 45;
   const thresholdFactor = opts?.thresholdFactor ?? 1.0;
   const maxHighlights = opts?.maxHighlights ?? 0; // 0 = unlimited
+  const funQuota = opts?.funQuota ?? 0;
 
   if (buckets.size === 0) return [];
 
@@ -578,6 +759,7 @@ export function findHypeMoments(
     return {
       key,
       score,
+      funScore: computeFunScore(merged, keys, buckets, idx),
       merged,
       burstScore: burst,
       spamScore: spam,
@@ -604,29 +786,34 @@ export function findHypeMoments(
   // ---- Phase 3: Greedy non-overlapping selection ----
   const selected: HypeMoment[] = [];
   const usedRanges: Array<[number, number]> = [];
+  const usedKeys = new Set<number>();
 
-  for (const entry of candidates) {
-    if (maxHighlights > 0 && selected.length >= maxHighlights) break;
+  const tryAdd = (entry: WindowScore, forcedTag?: HighlightTag): boolean => {
+    if (maxHighlights > 0 && selected.length >= maxHighlights) return false;
+    if (usedKeys.has(entry.key)) return false;
 
-    // Shift start back to account for chat reaction delay —
-    // viewers react AFTER the moment happens on stream.
-    const reactionDelay = 20;
-    const start = Math.max(0, entry.key - reactionDelay);
+    const b = entry.merged;
+    const tag = forcedTag ?? resolveDominantTag(b, entry.burstScore, entry.spamScore);
+
+    // Center the clip on the reaction peak. Chat reacts AFTER the moment,
+    // so the clip starts ~20s before the peak (setup + punchline) and ends
+    // ~10s after (the streamer's own reaction).
+    const peak =
+      tag === "fun"
+        ? peakTime(b.laughTimestamps, entry.key + windowSec / 2)
+        : peakTime(b.messageTimestamps, entry.key + windowSec / 2);
+    const start = Math.max(0, Math.round(peak - 20));
     const end = start + clipDuration;
 
-    // Check if too close to an already-selected moment
     const tooClose = usedRanges.some(
       ([s, e]) => start < e + minGap && end > s - minGap
     );
-    if (tooClose) continue;
-
-    const b = entry.merged;
-    const tag = resolveDominantTag(b, entry.burstScore, entry.spamScore);
+    if (tooClose) return false;
 
     selected.push({
       startSec: start,
       endSec: end,
-      score: entry.score,
+      score: Math.round((tag === "fun" ? Math.max(entry.score, entry.funScore) : entry.score) * 10) / 10,
       messagesPerSec: Math.round((b.messageCount / windowSec) * 10) / 10,
       messageCount: b.messageCount,
       tag,
@@ -635,6 +822,35 @@ export function findHypeMoments(
       sampleMessages: b.sampleMessages,
     });
     usedRanges.push([start, end]);
+    usedKeys.add(entry.key);
+    return true;
+  };
+
+  // 3a. Funny moments first, ranked by laughter only, with their own
+  //     adaptive threshold (computed among windows where people laughed).
+  if (funQuota > 0) {
+    const funWindows = windowScores.filter((w) => w.funScore > 0);
+    if (funWindows.length > 0) {
+      // Relative to THIS stream: at least twice as many laughers as a
+      // typical window, and at least 15% of the stream's best laugh.
+      const avgLaughers =
+        windowScores.reduce((sum, w) => sum + w.merged.laughers.size, 0) / windowScores.length;
+      const bestFun = Math.max(...funWindows.map((w) => w.funScore));
+      const funCandidates = funWindows
+        .filter((w) => w.merged.laughers.size >= avgLaughers * 2 && w.funScore >= bestFun * 0.15)
+        .sort((a, b) => b.funScore - a.funScore);
+      let funCount = 0;
+      for (const entry of funCandidates) {
+        if (funCount >= funQuota) break;
+        if (tryAdd(entry, "fun")) funCount++;
+      }
+    }
+  }
+
+  // 3b. Fill the remaining slots with the strongest moments of any kind.
+  for (const entry of candidates) {
+    if (maxHighlights > 0 && selected.length >= maxHighlights) break;
+    tryAdd(entry);
   }
 
   // Sort final results by time (chronological order)
